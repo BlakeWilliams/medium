@@ -11,6 +11,7 @@ func NewAction(rw http.ResponseWriter, r *http.Request, params map[string]string
 }
 
 type Action interface {
+	Redirect(path string)
 	Response() http.ResponseWriter
 	Request() *http.Request
 	Params() map[string]string
@@ -37,6 +38,11 @@ func (bc BaseAction) Request() *http.Request {
 
 func (bc BaseAction) Params() map[string]string {
 	return bc.params
+}
+
+// Redirects the user to the given path.
+func (bc BaseAction) Redirect(path string) {
+	http.Redirect(bc.Response(), bc.Request(), path, http.StatusFound)
 }
 
 var _ Action = &BaseAction{}
