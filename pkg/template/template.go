@@ -6,9 +6,6 @@ import (
 	"fmt"
 	htmlTemplate "html/template"
 	"io"
-	"os"
-	"path/filepath"
-	"sync"
 )
 
 var TemplateUndefinedError = errors.New("template is not defined")
@@ -21,59 +18,13 @@ type Renderer struct {
 	HotReload     bool
 	rootPath      string
 	funcMap       htmlTemplate.FuncMap
-	templateMap   map[string]*registeredTemplate
-	layoutMap     map[string]*registeredTemplate
+	templateMap   map[string]renderable
+	layoutMap     map[string]renderable
 }
 
-type registeredTemplate struct {
-	mu           sync.Mutex
-	path         string
-	renderer     *Renderer
-	htmlTemplate *htmlTemplate.Template
-}
-
-func newRegisteredTemplate(renderer *Renderer, path string) (*registeredTemplate, error) {
-	rt := &registeredTemplate{path: path, renderer: renderer}
-	err := rt.compile()
-
-	return rt, err
-}
-
-func (rt *registeredTemplate) execute(w io.Writer, data map[string]interface{}) error {
-	if rt.renderer.HotReload {
-		err := rt.compile()
-
-		if err != nil {
-			return fmt.Errorf("Could not hot compile template %s: %w", rt.path, err)
-		}
-	}
-
-	err := rt.htmlTemplate.Execute(w, data)
-
-	if err != nil {
-		return fmt.Errorf("Could not execute template %s: %w", rt.path, err)
-	}
-
-	return nil
-}
-
-func (rt *registeredTemplate) compile() error {
-	rt.mu.Lock()
-	defer rt.mu.Unlock()
-	path, err := filepath.Abs(filepath.Join(rt.renderer.rootPath, rt.path))
-
-	if err != nil {
-		return fmt.Errorf("Could not register template: %e", err)
-	}
-
-	if _, err := os.Stat(path); err != nil {
-		return fmt.Errorf("Could not register template: %e", err)
-	}
-
-	tmpl := htmlTemplate.Must(htmlTemplate.New(filepath.Base(path)).Funcs(rt.renderer.funcMap).ParseFiles(path))
-	rt.htmlTemplate = tmpl
-
-	return nil
+type renderable interface {
+	execute(w io.Writer, data map[string]interface{}) error
+	compile() error
 }
 
 // Creates a new Renderer.
@@ -81,8 +32,8 @@ func New(path string) *Renderer {
 	return &Renderer{
 		rootPath:    path,
 		funcMap:     make(htmlTemplate.FuncMap),
-		templateMap: make(map[string]*registeredTemplate),
-		layoutMap:   make(map[string]*registeredTemplate),
+		templateMap: make(map[string]renderable),
+		layoutMap:   make(map[string]renderable),
 	}
 }
 
@@ -94,7 +45,7 @@ func (r *Renderer) Helper(name string, helper interface{}) {
 // Registers a template that can be rendered. templatePath should be relative to
 // the Renderer's root path.
 func (r *Renderer) RegisterTemplate(templatePath string) error {
-	tmpl, err := newRegisteredTemplate(r, templatePath)
+	tmpl, err := newfsTemplate(r, templatePath)
 	if err != nil {
 		return err
 	}
@@ -104,10 +55,36 @@ func (r *Renderer) RegisterTemplate(templatePath string) error {
 	return nil
 }
 
+// Registers a template using the passed in contents as the template source.
+func (r *Renderer) RegisterStaticTemplate(name string, contents string) error {
+	tmpl, err := newStaticTemplate(r, name, contents)
+
+	if err != nil {
+		return err
+	}
+
+	r.templateMap[name] = tmpl
+
+	return nil
+}
+
+// Registers a layout using the passed in contents as the template source.
+func (r *Renderer) RegisterStaticLayout(name string, contents string) error {
+	tmpl, err := newStaticTemplate(r, name, contents)
+
+	if err != nil {
+		return err
+	}
+
+	r.layoutMap[name] = tmpl
+
+	return nil
+}
+
 // Registers a layout that can be rendered. templatePath should be relative to
 // the Renderer's root path.
 func (r *Renderer) RegisterLayout(templatePath string) error {
-	tmpl, err := newRegisteredTemplate(r, templatePath)
+	tmpl, err := newfsTemplate(r, templatePath)
 	if err != nil {
 		return err
 	}

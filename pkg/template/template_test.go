@@ -75,3 +75,31 @@ func TestTemplate_HotReload_WithLayout(t *testing.T) {
 
 	require.Equal(t, "<html>\n<body>\n  <h1>Hello FOX MULDER</h1>\n\n</body>\n</html>\n", buf.String())
 }
+
+func TestStaticTemplates(t *testing.T) {
+	renderer := New("./fixtures")
+	err := renderer.RegisterStaticTemplate("hello.tmpl.html", "hello {{.Name}} inside a static template")
+	require.NoError(t, err)
+
+	buf := new(bytes.Buffer)
+	err = renderer.Render(buf, "hello.tmpl.html", map[string]interface{}{"Name": "Fox Mulder"})
+	require.NoError(t, err)
+
+	require.Equal(t, "hello Fox Mulder inside a static template", buf.String())
+}
+
+func TestStaticTemplates_WithLayout(t *testing.T) {
+	renderer := New("./fixtures")
+	err := renderer.RegisterStaticTemplate("hello.tmpl.html", "hello {{.Name}} inside a static template")
+	require.NoError(t, err)
+	err = renderer.RegisterStaticLayout("layout.tmpl.html", "<static>{{.ChildContent}}</static>")
+	require.NoError(t, err)
+
+	renderer.DefaultLayout = "layout.tmpl.html"
+
+	buf := new(bytes.Buffer)
+	err = renderer.Render(buf, "hello.tmpl.html", map[string]interface{}{"Name": "Fox Mulder"})
+	require.NoError(t, err)
+
+	require.Equal(t, "<static>hello Fox Mulder inside a static template</static>", buf.String())
+}
