@@ -5,14 +5,16 @@ import (
 	"strings"
 )
 
-type Route[T Controller] struct {
+type HandlerFunc[C any] func(C)
+
+type Route[C any] struct {
 	Method  string
 	Raw     string
 	parts   []string
-	handler func(T)
+	handler HandlerFunc[C]
 }
 
-func (r *Route[T]) IsMatch(req *http.Request) (bool, map[string]string) {
+func (r *Route[C]) IsMatch(req *http.Request) (bool, map[string]string) {
 	if r.Method != req.Method {
 		return false, nil
 	}
@@ -36,7 +38,7 @@ func (r *Route[T]) IsMatch(req *http.Request) (bool, map[string]string) {
 	return true, params
 }
 
-func newRoute[T Controller](method string, path string, handler func(T)) *Route[T] {
+func newRoute[C any](method string, path string, handler HandlerFunc[C]) *Route[C] {
 	// TODO better support for `/`, remove double `//`
-	return &Route[T]{Method: method, Raw: path, parts: strings.Split(path, "/"), handler: handler}
+	return &Route[C]{Method: method, Raw: path, parts: strings.Split(path, "/"), handler: handler}
 }

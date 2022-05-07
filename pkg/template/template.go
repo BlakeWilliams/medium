@@ -18,6 +18,7 @@ type Renderer struct {
 	rootPath string
 	// The layout rendered by default when calling Render.
 	DefaultLayout string
+	HotReload     bool
 	funcMap       htmlTemplate.FuncMap
 	templateMap   map[string]*htmlTemplate.Template
 	layoutMap     map[string]*htmlTemplate.Template
@@ -81,8 +82,25 @@ func (r *Renderer) RegisterLayout(templatePath string) error {
 // defined on Renderer, it will also have access to the provided data.
 func (r *Renderer) Render(w io.Writer, name string, data map[string]interface{}) error {
 	if template, ok := r.templateMap[name]; ok {
+		// TODO make hot reloading concurrency wise by extracing a template
+		// object and adding a mutex
+		if r.HotReload {
+			err := r.RegisterTemplate(name)
+			if err != nil {
+				panic(err)
+			}
+		}
+
 		if r.DefaultLayout != "" {
 			if layout, ok := r.layoutMap[r.DefaultLayout]; ok {
+
+				if r.HotReload {
+					err := r.RegisterLayout(r.DefaultLayout)
+					if err != nil {
+						panic(err)
+					}
+				}
+
 				buf := new(bytes.Buffer)
 				if err := template.Execute(buf, data); err != nil {
 					return err

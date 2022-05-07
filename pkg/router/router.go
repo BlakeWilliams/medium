@@ -2,53 +2,69 @@ package router
 
 import (
 	"net/http"
-
-	"github.com/blakewilliams/medium/pkg/hooks"
 )
 
-type ServeEvent[T Controller] struct {
-	Route Route[T]
-	Controller T
+type Middleware[T any] func(T, HandlerFunc[T])
+type ContextFactory[T any] func(http.ResponseWriter, *http.Request, map[string]string) T
+
+type Router[T Context] struct {
+	Application T
+	Routes      []*Route[T]
+	middleware  []Middleware[T]
+	contextFactory ContextFactory[T]
 }
 
-type ControllerFactory[T Controller] func(http.ResponseWriter, *http.Request, map[string]string) T
-
-type Router[T Controller] struct {
-	Routes            []*Route[T]
-	controllerCreator func(http.ResponseWriter, *http.Request, map[string]string) T
-	serveHook *hooks.Emitter[ServeEvent[T]]
-}
-
-func New[T Controller](controllerFactory ControllerFactory[T]) *Router[T] {
+func New[T Context](contextFactory ContextFactory[T]) *Router[T] {
 	return &Router[T]{
-		Routes:            make([]*Route[T], 0),
-		controllerCreator: controllerFactory,
-		serveHook: hooks.NewEmitter[ServeEvent[T]](),
+		contextFactory: contextFactory,
+		Routes:      make([]*Route[T], 0),
 	}
 }
 
 func (router *Router[T]) Run(rw http.ResponseWriter, r *http.Request) {
-	for _, route := range router.Routes {
-		if ok, params := route.IsMatch(r); ok {
-			controller := router.controllerCreator(rw, r, params)
+	var matchingRoute *Route[T]
+	params := map[string]string{}
 
-			payload := ServeEvent[T]{Route: *route, Controller: controller}
-			router.serveHook.Emit(payload, func() {
-				route.handler(controller)
-			})
+	for _, route := range router.Routes {
+		if ok, routeParams := route.IsMatch(r); ok {
+			matchingRoute = route
+			params = routeParams
 			break
 		}
 	}
+
+	context := router.contextFactory(rw, r, params)
+
+	var handler HandlerFunc[T]
+
+	if matchingRoute != nil {
+		handler = func(c T) { matchingRoute.handler(c) }
+	} else {
+		handler = func(c T) {}
+	}
+
+	next := handler
+
+	for i := len(router.middleware) - 1; i >= 0; i-- {
+		newNext := func(next HandlerFunc[T], i int) HandlerFunc[T] {
+			return func(ctx T) {
+				router.middleware[i](ctx, next)
+			}
+		}(next, i)
+		next = newNext
+	}
+
+	next(context)
 }
 
-func (r *Router[Controller]) Match(method string, path string, controller func(Controller)) {
-	r.Routes = append(r.Routes, newRoute(method, path, controller))
+func (r *Router[T]) match(method string, path string, handler HandlerFunc[T]) {
+	r.Routes = append(r.Routes, newRoute(method, path, handler))
 }
 
-func (r *Router[Controller]) Get(path string, controller func(Controller)) {
-	r.Routes = append(r.Routes, newRoute(http.MethodGet, path, controller))
+func (r *Router[T]) Controller(rootPath string, handlerGenerator func(c *Controller[T])) {
+	handlerGenerator(newController[T](rootPath, r))
 }
 
-func (r *Router[T]) OnServe(handler func(hooks.Event[ServeEvent[T]])) {
-	r.serveHook.Subscribe(handler)
+func (r *Router[T]) Use(middleware func(c T, next HandlerFunc[T])) {
+	r.middleware = append(r.middleware, middleware)
 }
