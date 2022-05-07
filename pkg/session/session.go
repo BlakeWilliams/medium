@@ -21,7 +21,7 @@ type Session[T any] struct {
 // passed in Verifier.
 func New[T any](name string, verifier Verifier) *Session[T] {
 	return &Session[T]{
-		name: name,
+		name:     name,
 		verifier: verifier,
 	}
 }
@@ -64,7 +64,7 @@ func (s *Session[T]) Write(w http.ResponseWriter) error {
 	encodedData := s.verifier.Encode(jsonValue)
 
 	http.SetCookie(w, &http.Cookie{
-		Name: s.name,
+		Name:  s.name,
 		Value: string(encodedData),
 	})
 

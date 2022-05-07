@@ -10,7 +10,7 @@ import (
 
 type MyData struct {
 	UserID int
-	Name string
+	Name   string
 }
 
 func TestSessionCookie(t *testing.T) {
