@@ -5,8 +5,12 @@ import (
 	"strings"
 )
 
+// A function that handles a request.
 type HandlerFunc[C any] func(C)
 
+// A Route is a single route that can be matched against a request and holds a
+// reference to the handler used to handle the reques and holds a reference to
+// the handler used to handle the request.
 type Route[C any] struct {
 	Method  string
 	Raw     string
@@ -14,6 +18,8 @@ type Route[C any] struct {
 	handler HandlerFunc[C]
 }
 
+// Given a request, returns true if the route matches the request and false if
+// not.
 func (r *Route[C]) IsMatch(req *http.Request) (bool, map[string]string) {
 	if r.Method != req.Method {
 		return false, nil

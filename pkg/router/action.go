@@ -31,7 +31,7 @@ func (bc BaseAction) Response() http.ResponseWriter {
 	return bc.response
 }
 
-func (bc BaseAction) Request() *http.Request{
+func (bc BaseAction) Request() *http.Request {
 	return bc.request
 }
 
