@@ -19,6 +19,8 @@ type Router[T Action] struct {
 	routes         []*Route[T]
 	middleware     []Middleware[T]
 	contextFactory ContextFactory[T]
+	// Called when no route matches the request. Useful for rendering 404 pages.
+	missingRoute HandlerFunc[T]
 }
 
 // Creates a new Router with the given ContextFactory.
@@ -50,8 +52,16 @@ func (router *Router[T]) Run(rw http.ResponseWriter, r *http.Request) {
 
 	if matchingRoute != nil {
 		handler = func(c T) { matchingRoute.handler(c) }
+	} else if router.missingRoute != nil {
+		handler = func(c T) {
+			c.Response().WriteHeader(http.StatusNotFound)
+			router.missingRoute(c)
+		}
 	} else {
-		handler = func(c T) {}
+		handler = func(c T) {
+			c.Response().WriteHeader(http.StatusNotFound)
+			c.Write([]byte("404 not found"))
+		}
 	}
 
 	next := handler
@@ -76,6 +86,16 @@ func (r *Router[T]) Match(method string, path string, handler HandlerFunc[T]) {
 // Defines a new Route that responds to GET requests.
 func (r *Router[T]) Get(path string, handler HandlerFunc[T]) {
 	r.routes = append(r.routes, newRoute(http.MethodGet, path, handler))
+}
+
+// Defines a new Route that responds to POST requests.
+func (r *Router[T]) Post(path string, handler HandlerFunc[T]) {
+	r.routes = append(r.routes, newRoute(http.MethodPost, path, handler))
+}
+
+// Defines a handler that is called when no route matches the request.
+func (r *Router[T]) Missing(handler HandlerFunc[T]) {
+	r.missingRoute = handler
 }
 
 // Defines a new middleware that is called in each request before the matching

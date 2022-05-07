@@ -29,3 +29,46 @@ func TestHappyPath(t *testing.T) {
 	require.Equal(t, "hello Fox Mulder", rw.Body.String())
 	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
 }
+
+func TestRouter_Post(t *testing.T) {
+	router := New(NewAction)
+
+	router.Post("/hello/:name", func(c *BaseAction) {
+		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/hello/Fox%20Mulder", nil)
+	rw := httptest.NewRecorder()
+
+	router.Run(rw, req)
+
+	require.Equal(t, "hello Fox Mulder", rw.Body.String())
+}
+
+func TestRouter_MissingRoute_NoHandler(t *testing.T) {
+	router := New(NewAction)
+
+	req := httptest.NewRequest(http.MethodGet, "/where/do/i/go", nil)
+	rw := httptest.NewRecorder()
+
+	router.Run(rw, req)
+
+	require.Equal(t, "404 not found", rw.Body.String())
+	require.Equal(t, 404, rw.Result().StatusCode)
+}
+
+func TestRouter_MissingRoute_WithHandler(t *testing.T) {
+	router := New(NewAction)
+
+	router.Missing(func(c *BaseAction) {
+		c.Write([]byte("Sorry, can't find that page."))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/where/do/i/go", nil)
+	rw := httptest.NewRecorder()
+
+	router.Run(rw, req)
+
+	require.Equal(t, "Sorry, can't find that page.", rw.Body.String())
+	require.Equal(t, 404, rw.Result().StatusCode)
+}
