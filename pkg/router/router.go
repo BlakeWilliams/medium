@@ -7,14 +7,14 @@ import (
 type Middleware[T any] func(T, HandlerFunc[T])
 type ContextFactory[T any] func(http.ResponseWriter, *http.Request, map[string]string) T
 
-type Router[T Context] struct {
+type Router[T Action] struct {
 	Application T
 	Routes      []*Route[T]
 	middleware  []Middleware[T]
 	contextFactory ContextFactory[T]
 }
 
-func New[T Context](contextFactory ContextFactory[T]) *Router[T] {
+func New[T Action](contextFactory ContextFactory[T]) *Router[T] {
 	return &Router[T]{
 		contextFactory: contextFactory,
 		Routes:      make([]*Route[T], 0),
@@ -57,12 +57,12 @@ func (router *Router[T]) Run(rw http.ResponseWriter, r *http.Request) {
 	next(context)
 }
 
-func (r *Router[T]) match(method string, path string, handler HandlerFunc[T]) {
+func (r *Router[T]) Match(method string, path string, handler HandlerFunc[T]) {
 	r.Routes = append(r.Routes, newRoute(method, path, handler))
 }
 
-func (r *Router[T]) Controller(rootPath string, handlerGenerator func(c *Controller[T])) {
-	handlerGenerator(newController[T](rootPath, r))
+func (r *Router[T]) Get(path string, handler HandlerFunc[T]) {
+	r.Routes = append(r.Routes, newRoute(http.MethodGet, path, handler))
 }
 
 func (r *Router[T]) Use(middleware func(c T, next HandlerFunc[T])) {
