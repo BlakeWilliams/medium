@@ -1,0 +1,9 @@
+{{if not .SentMail}}No mail has been sent {{end}}
+
+{{range $i, $m := .SentMail}}
+  <a href="/_mailer/sent/{{$i}}">
+    To: {{$m.To}}<br/>
+    From: {{$m.From}}<br/>
+    Subject: {{$m.Subject}}<br/>
+  </a>
+{{end}}
