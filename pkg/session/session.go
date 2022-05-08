@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 )
 
 // Session is a wrapper around a http.Cookie that provides signed messages,
@@ -12,9 +13,10 @@ import (
 // The data stored is still readable by the client, so secrets and sensitive
 // data should not be stored in Session.Data.
 type Session[T any] struct {
-	verifier Verifier
-	name     string
-	Data     T
+	verifier     Verifier
+	name         string
+	Data         T
+	originalData T
 }
 
 // New creates a new Session with the given name and verifies Data using the
@@ -47,6 +49,7 @@ func (s *Session[T]) FromCookie(cookie *http.Cookie) error {
 	if err != nil {
 		return fmt.Errorf("Could not decode session: %w", err)
 	}
+	err = json.Unmarshal(decodedMessage, &s.originalData)
 
 	return nil
 }
@@ -69,4 +72,14 @@ func (s *Session[T]) Write(w http.ResponseWriter) error {
 	})
 
 	return nil
+}
+
+// Writes the session to the response writer only if the underlying data has
+// changed.
+func (s *Session[T]) WriteIfChanged(w http.ResponseWriter) error {
+	if reflect.DeepEqual(s.originalData, s.Data) {
+		return nil
+	}
+
+	return s.Write(w)
 }
