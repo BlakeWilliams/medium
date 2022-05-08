@@ -101,3 +101,39 @@ func TestCustomActionType(t *testing.T) {
 	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
 }
 
+func TestCustomActionType_AroundHandler(t *testing.T) {
+	router := New(func(bc *BaseAction) *MyAction {
+		return &MyAction{BaseAction: bc, Data: 1}
+	})
+
+	router.Use(func(c *BaseAction, next HandlerFunc[*BaseAction]) {
+		c.Response().Header().Add("x-from-middleware", "wow")
+		next(c)
+	})
+
+	router.Around(func(c *MyAction, next func()) {
+		c.Data += 1
+		next()
+		c.Data += 5
+	})
+
+	router.Around(func(c *MyAction, next func()) {
+		c.Data *= 2
+		next()
+		c.Data += 5
+	})
+
+	router.Get("/hello/:name", func(c *MyAction) {
+		c.Write([]byte(fmt.Sprintf("hello %s, data %d", c.Params()["name"], c.Data)))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
+	rw := httptest.NewRecorder()
+
+	router.Run(rw, req)
+
+	// Data should be 4, since it starts at 1, first middleware adds 1, second
+	// middleware multiplies by 2
+	require.Equal(t, "hello Fox Mulder, data 4", rw.Body.String())
+	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
+}

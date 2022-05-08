@@ -8,6 +8,9 @@ import (
 // See Router.Use for more information.
 type Middleware func(*BaseAction, HandlerFunc[*BaseAction])
 
+// AroundHandler represents a function that wraps a given route handler.
+type AroundHandler[T Action] func(T, func())
+
 // ContextFactory is a function that returns a new context for each request.
 // This is the entrypoint for the router and can be used to setup request data
 // like fetching the current user, reading session data, etc.
@@ -18,6 +21,7 @@ type ContextFactory[T any] func(*BaseAction) T
 type Router[T Action] struct {
 	routes         []*Route[T]
 	middleware     []Middleware
+	aroundHandlers []AroundHandler[T]
 	contextFactory ContextFactory[T]
 	// Called when no route matches the request. Useful for rendering 404 pages.
 	missingRoute HandlerFunc[T]
@@ -53,7 +57,8 @@ func (router *Router[T]) Run(rw http.ResponseWriter, r *http.Request) {
 	if matchingRoute != nil {
 		handler = func(baseAction *BaseAction) {
 			ac := router.contextFactory(baseAction)
-			matchingRoute.handler(ac)
+			wrappedHandler := router.wrapHandler((matchingRoute.handler))
+			wrappedHandler(ac)
 		}
 	} else if router.missingRoute != nil {
 		handler = func(baseAction *BaseAction) {
@@ -83,6 +88,24 @@ func (router *Router[T]) Run(rw http.ResponseWriter, r *http.Request) {
 	next(action)
 }
 
+func (r *Router[T]) wrapHandler(baseHandler HandlerFunc[T]) HandlerFunc[T] {
+	currentHandler := baseHandler
+
+	for i := len(r.aroundHandlers) - 1; i >= 0; i-- {
+		newHandler := func(handler AroundHandler[T], next HandlerFunc[T]) func(ac T) {
+			return func(ac T) {
+				handler(ac, func() {
+					next(ac)
+				})
+			}
+		}(r.aroundHandlers[i], currentHandler)
+
+		currentHandler = newHandler
+	}
+
+	return currentHandler
+}
+
 // Match is used to add a new Route to the Router
 func (r *Router[T]) Match(method string, path string, handler HandlerFunc[T]) {
 	r.routes = append(r.routes, newRoute(method, path, handler))
@@ -108,9 +131,20 @@ func (r *Router[T]) Missing(handler HandlerFunc[T]) {
 // router.BaseAction and not the application specific action. This is due to
 // middleware being treated as a low-level API.
 //
+// If you need access to the application specific action, you can use the
+// router.Around method.
 //
 // Middleware is called in the order that they are added. Middleware must call
 // next in order to continue the request, otherwise the request is halted.
 func (r *Router[T]) Use(middleware Middleware) {
 	r.middleware = append(r.middleware, middleware)
+}
+
+// Defines a new AroundHandler that is called before matching routes or
+// missingRoute handlers are called.
+//
+// Around handlers are passed a function that should be called to continue the
+// request. If it is not called, the request is halted.
+func (r *Router[T]) Around(aroundHandler AroundHandler[T]) {
+	r.aroundHandlers = append(r.aroundHandlers, aroundHandler)
 }
