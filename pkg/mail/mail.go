@@ -60,7 +60,7 @@ func (m *Mailer) Send(templateName string, to string, subject string, data map[s
 	if m.DevMode {
 		m.SentMail = append(m.SentMail, *mail)
 	} else {
-		err := mail.Send(m, m.deliverer)
+		err := mail.Send(m.deliverer)
 
 		if err != nil {
 			return err
@@ -81,7 +81,7 @@ func NewMail(to []string, subject string, from string, body string) *Mail {
 	}
 }
 
-func (m *Mail) Send(mailer *Mailer, deliverer Deliverer) error {
+func (m *Mail) Send(deliverer Deliverer) error {
 	err := deliverer.SendMail(m.From, m.To, []byte(m.Body))
 
 	if err != nil {
