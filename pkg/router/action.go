@@ -2,6 +2,10 @@ package router
 
 import "net/http"
 
+func DefaultActionFactory(baseAction *BaseAction) *BaseAction {
+	return baseAction
+}
+
 func NewAction(rw http.ResponseWriter, r *http.Request, params map[string]string) *BaseAction {
 	return &BaseAction{
 		response: rw,

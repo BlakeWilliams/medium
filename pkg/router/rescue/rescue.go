@@ -13,12 +13,12 @@ type Logger interface {
 }
 
 //  An ErrorHandler is a function that is called when an error occurs.
-type ErrorHandler[T router.Action] func(T, error)
+type ErrorHandler func(*router.BaseAction, error)
 
 // Middleware accepts an ErrorHandler and returns a router.Middleware that will
 // rescue errors that happen in middlewares that are called after it.
-func Middleware[T router.Action](handler ErrorHandler[T]) router.Middleware[T] {
-	return func(c T, next router.HandlerFunc[T]) {
+func Middleware(handler ErrorHandler) router.Middleware {
+	return func(c *router.BaseAction, next router.HandlerFunc[*router.BaseAction]) {
 		defer func() {
 			err := recover()
 			if err != nil {

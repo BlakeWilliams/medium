@@ -28,7 +28,7 @@ type Config struct {
 //
 // The middleware expects for webpack to be executable in the current working
 // directory.
-func Middleware[T router.Action](config Config) router.Middleware[T] {
+func Middleware(config Config) router.Middleware {
 	logger := config.Logger
 
 	go func() {
@@ -44,7 +44,7 @@ func Middleware[T router.Action](config Config) router.Middleware[T] {
 		logger.Fatalf("esbuild exited with the following error: %s", err)
 	}()
 
-	return func(c T, next router.HandlerFunc[T]) {
+	return func(c *router.BaseAction, next router.HandlerFunc[*router.BaseAction]) {
 		if strings.HasPrefix(c.Request().URL.Path, "/assets/") {
 			fileName := strings.TrimPrefix(c.Request().URL.Path, "/assets/")
 			res, err := http.Get(fmt.Sprintf("http://localhost:8081/%s", fileName))

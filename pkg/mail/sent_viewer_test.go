@@ -10,7 +10,7 @@ import (
 )
 
 func TestSentViewer_Index(t *testing.T) {
-	r := router.New(router.NewAction)
+	r := router.New(router.DefaultActionFactory)
 	renderer := template.New("")
 	renderer.RegisterStaticTemplate("index", "welcome!")
 
@@ -42,7 +42,7 @@ func TestSentViewer_Index(t *testing.T) {
 }
 
 func TestSentViewer_Show(t *testing.T) {
-	r := router.New(router.NewAction)
+	r := router.New(router.DefaultActionFactory)
 	renderer := template.New("")
 	renderer.RegisterStaticTemplate("index", "welcome!")
 
@@ -67,7 +67,7 @@ func TestSentViewer_Show(t *testing.T) {
 }
 
 func TestSentViewer_Body(t *testing.T) {
-	r := router.New(router.NewAction)
+	r := router.New(router.DefaultActionFactory)
 	renderer := template.New("")
 	renderer.RegisterStaticTemplate("index", "welcome!")
 

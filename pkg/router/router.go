@@ -6,18 +6,18 @@ import (
 
 // Middleware is a function that is called before the action is executed.
 // See Router.Use for more information.
-type Middleware[T any] func(T, HandlerFunc[T])
+type Middleware func(*BaseAction, HandlerFunc[*BaseAction])
 
 // ContextFactory is a function that returns a new context for each request.
 // This is the entrypoint for the router and can be used to setup request data
 // like fetching the current user, reading session data, etc.
-type ContextFactory[T any] func(http.ResponseWriter, *http.Request, map[string]string) T
+type ContextFactory[T any] func(*BaseAction) T
 
 // Router is a collection of Routes and is used to dispatch requests to the
 // correct Route handler.
 type Router[T Action] struct {
 	routes         []*Route[T]
-	middleware     []Middleware[T]
+	middleware     []Middleware
 	contextFactory ContextFactory[T]
 	// Called when no route matches the request. Useful for rendering 404 pages.
 	missingRoute HandlerFunc[T]
@@ -46,36 +46,41 @@ func (router *Router[T]) Run(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	context := router.contextFactory(rw, r, params)
+	var handler HandlerFunc[*BaseAction]
 
-	var handler HandlerFunc[T]
-
+	// TODO - there's no reason we need to re-build the middleware stack and
+	// around stack each request.
 	if matchingRoute != nil {
-		handler = func(c T) { matchingRoute.handler(c) }
+		handler = func(baseAction *BaseAction) {
+			ac := router.contextFactory(baseAction)
+			matchingRoute.handler(ac)
+		}
 	} else if router.missingRoute != nil {
-		handler = func(c T) {
-			c.Response().WriteHeader(http.StatusNotFound)
-			router.missingRoute(c)
+		handler = func(baseAction *BaseAction) {
+			baseAction.Response().WriteHeader(http.StatusNotFound)
+			action := router.contextFactory(baseAction)
+			router.missingRoute(action)
 		}
 	} else {
-		handler = func(c T) {
-			c.Response().WriteHeader(http.StatusNotFound)
-			c.Write([]byte("404 not found"))
+		handler = func(baseAction *BaseAction) {
+			baseAction.Response().WriteHeader(http.StatusNotFound)
+			baseAction.Write([]byte("404 not found"))
 		}
 	}
 
+	action := NewAction(rw, r, params)
 	next := handler
 
 	for i := len(router.middleware) - 1; i >= 0; i-- {
-		newNext := func(next HandlerFunc[T], i int) HandlerFunc[T] {
-			return func(ctx T) {
-				router.middleware[i](ctx, next)
+		newNext := func(next HandlerFunc[*BaseAction], middleware Middleware) func(baseAction *BaseAction) {
+			return func(baseAction *BaseAction) {
+				middleware(baseAction, next)
 			}
-		}(next, i)
+		}(next, router.middleware[i])
 		next = newNext
 	}
 
-	next(context)
+	next(action)
 }
 
 // Match is used to add a new Route to the Router
@@ -99,10 +104,13 @@ func (r *Router[T]) Missing(handler HandlerFunc[T]) {
 }
 
 // Defines a new middleware that is called in each request before the matching
-// route is called, if one exists.
+// route is called, if one exists. Middleware are only passed a
+// router.BaseAction and not the application specific action. This is due to
+// middleware being treated as a low-level API.
+//
 //
 // Middleware is called in the order that they are added. Middleware must call
 // next in order to continue the request, otherwise the request is halted.
-func (r *Router[T]) Use(middleware func(c T, next HandlerFunc[T])) {
+func (r *Router[T]) Use(middleware Middleware) {
 	r.middleware = append(r.middleware, middleware)
 }
