@@ -3,6 +3,7 @@ package mail
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/blakewilliams/medium/pkg/template"
@@ -81,7 +82,17 @@ func NewMail(to []string, subject string, from string, body string) *Mail {
 	}
 }
 
+// Sends an email using the passed in deliverer.
 func (m *Mail) Send(deliverer Deliverer) error {
+	msg := new(bytes.Buffer)
+	msg.WriteString("From: " + m.From + "\r\n")
+	msg.WriteString("To: " + strings.Join(m.To, ",") + "\r\n")
+	msg.WriteString("Subject: " + m.Subject + "\r\n")
+	msg.WriteString("Content-Type: text/html\r\n")
+
+	msg.WriteString("\r\n")
+	msg.WriteString(m.Body)
+
 	err := deliverer.SendMail(m.From, m.To, []byte(m.Body))
 
 	if err != nil {
