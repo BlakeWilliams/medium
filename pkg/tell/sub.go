@@ -18,7 +18,9 @@ type (
 	// occur in the system.
 	SimpleNotifier struct {
 		subscriptions map[string][]func(Event)
-		MaxWait       time.Duration
+		// MaxWait is the maximum amount of time to wait for a subscriber to
+		// finish processing an event. The default is 5 seconds.
+		MaxWait time.Duration
 	}
 
 	// Payload is a map of key/value pairs that can be used to pass data along
