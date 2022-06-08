@@ -25,7 +25,8 @@ Here's a basic example of how to use the sub package:
 	func notifierMiddleware(notifier sub.Notifier) http.Handler {
 		return func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				notifier.Start("web.request.serve", sub.Payload{"method": r.Method, "path": r.URL.Path})
+				event := notifier.Start("web.request.serve", sub.Payload{"method": r.Method, "path": r.URL.Path})
+				defer event.Finish()
 				next().ServeHTTP(w, r)
 			})
 		})
