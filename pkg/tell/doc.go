@@ -6,7 +6,7 @@ of the package to subscribe to events and implement their own logging,
 tracing, and observability instead of coupling the package to a specific
 interface or implementation.
 
-Here's a basic example of how to use the sub package:
+Here's a basic example of how to use a notifier for logging and tracing:
 
 	notifier := sub.New()
 	notifier.Subscribe("web.request.serve", func(e sub.Event) {
