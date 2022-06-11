@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/blakewilliams/medium/pkg/router"
 )
@@ -30,21 +31,24 @@ type Config struct {
 // directory.
 func Middleware(config Config) router.Middleware {
 	logger := config.Logger
-
-	go func() {
-		cmd := exec.Command("npx", "webpack", "serve")
-		cmd.Env = append(cmd.Env, "NODE_ENV=development")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if config.WebpackRoot != "" {
-			cmd.Path = config.WebpackRoot
-		}
-		err := cmd.Run()
-
-		logger.Fatalf("esbuild exited with the following error: %s", err)
-	}()
+	once := sync.Once{}
 
 	return func(c *router.BaseAction, next router.HandlerFunc[*router.BaseAction]) {
+		once.Do(func() {
+			go func() {
+				cmd := exec.Command("npx", "webpack", "serve")
+				cmd.Env = append(cmd.Env, "NODE_ENV=development")
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				if config.WebpackRoot != "" {
+					cmd.Path = config.WebpackRoot
+				}
+				err := cmd.Run()
+
+				logger.Fatalf("esbuild exited with the following error: %s", err)
+			}()
+		})
+
 		if strings.HasPrefix(c.Request().URL.Path, "/assets/") {
 			fileName := strings.TrimPrefix(c.Request().URL.Path, "/assets/")
 			res, err := http.Get(fmt.Sprintf("http://localhost:8081/%s", fileName))
