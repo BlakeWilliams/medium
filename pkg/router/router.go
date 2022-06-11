@@ -35,10 +35,15 @@ func New[T Action](contextFactory ContextFactory[T]) *Router[T] {
 	}
 }
 
+// DEPRECATED: Use ServeHttp
 // Run is responsible dispatching requests to the correct handler.
 // First the middleware is run, then if there is a matching route, the handler
 // associated with that Route is called.
 func (router *Router[T]) Run(rw http.ResponseWriter, r *http.Request) {
+	router.ServeHTTP(rw, r)
+}
+
+func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var matchingRoute *Route[T]
 	params := map[string]string{}
 
