@@ -11,10 +11,10 @@ type Middleware func(*BaseAction, HandlerFunc[*BaseAction])
 // AroundHandler represents a function that wraps a given route handler.
 type AroundHandler[T Action] func(T, func())
 
-// ContextFactory is a function that returns a new context for each request.
+// ActionFactory is a function that returns a new context for each request.
 // This is the entrypoint for the router and can be used to setup request data
 // like fetching the current user, reading session data, etc.
-type ContextFactory[T any] func(*BaseAction) T
+type ActionFactory[T any] func(*BaseAction) T
 
 // Router is a collection of Routes and is used to dispatch requests to the
 // correct Route handler.
@@ -22,13 +22,13 @@ type Router[T Action] struct {
 	routes         []*Route[T]
 	middleware     []Middleware
 	aroundHandlers []AroundHandler[T]
-	contextFactory ContextFactory[T]
+	contextFactory ActionFactory[T]
 	// Called when no route matches the request. Useful for rendering 404 pages.
 	missingRoute HandlerFunc[T]
 }
 
 // Creates a new Router with the given ContextFactory.
-func New[T Action](contextFactory ContextFactory[T]) *Router[T] {
+func New[T Action](contextFactory ActionFactory[T]) *Router[T] {
 	return &Router[T]{
 		contextFactory: contextFactory,
 		routes:         make([]*Route[T], 0),
