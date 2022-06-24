@@ -1,4 +1,4 @@
-package template
+package view
 
 import (
 	"fmt"

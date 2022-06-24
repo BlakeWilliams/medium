@@ -1,4 +1,4 @@
-package template
+package view
 
 import (
 	"bytes"
@@ -6,6 +6,9 @@ import (
 	"fmt"
 	htmlTemplate "html/template"
 	"io"
+	"io/fs"
+	"path/filepath"
+	"strings"
 )
 
 var TemplateUndefinedError = errors.New("template is not defined")
@@ -40,6 +43,39 @@ func New(path string) *Renderer {
 // Registers a helper usable by all templates.
 func (r *Renderer) Helper(name string, helper interface{}) {
 	r.funcMap[name] = helper
+}
+
+// Registers all templates in the given directory. The layouts subdirectory, if
+// present, register all files within it as layouts.
+func (r *Renderer) AutoRegister() error {
+	err := filepath.WalkDir(r.rootPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		relativePath, err := filepath.Rel(r.rootPath, path)
+		if err != nil {
+			return err
+		}
+
+		if strings.HasPrefix(relativePath, "layouts") {
+			r.RegisterLayout(relativePath)
+		} else {
+			r.RegisterTemplate(relativePath)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("Could not register templates in %s: %w", r.rootPath, err)
+	}
+
+	return nil
 }
 
 // Registers a template that can be rendered. templatePath should be relative to

@@ -1,4 +1,4 @@
-package template
+package view
 
 import (
 	"bytes"
@@ -40,10 +40,10 @@ func TestTemplateWithLayout(t *testing.T) {
 	renderer.Helper("upcase", func(word string) string {
 		return strings.ToUpper(word)
 	})
-	err := renderer.RegisterLayout("layout.tmpl.html")
+	err := renderer.RegisterLayout("layouts/layout.tmpl.html")
 	require.NoError(t, err)
 
-	renderer.DefaultLayout = "layout.tmpl.html"
+	renderer.DefaultLayout = "layouts/layout.tmpl.html"
 
 	err = renderer.RegisterTemplate("funcs.tmpl.html")
 	require.NoError(t, err)
@@ -61,10 +61,10 @@ func TestTemplate_HotReload_WithLayout(t *testing.T) {
 		return strings.ToUpper(word)
 	})
 	renderer.HotReload = true
-	err := renderer.RegisterLayout("layout.tmpl.html")
+	err := renderer.RegisterLayout("layouts/layout.tmpl.html")
 	require.NoError(t, err)
 
-	renderer.DefaultLayout = "layout.tmpl.html"
+	renderer.DefaultLayout = "layouts/layout.tmpl.html"
 
 	err = renderer.RegisterTemplate("funcs.tmpl.html")
 	require.NoError(t, err)
@@ -102,4 +102,20 @@ func TestStaticTemplates_WithLayout(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "<static>hello Fox Mulder inside a static template</static>", buf.String())
+}
+
+func TestAutoLayout(t *testing.T) {
+	renderer := New("./fixtures")
+	renderer.Helper("upcase", func(word string) string {
+		return strings.ToUpper(word)
+	})
+	err := renderer.AutoRegister()
+	require.NoError(t, err)
+	renderer.DefaultLayout = "layouts/layout.tmpl.html"
+
+	buf := new(bytes.Buffer)
+	err = renderer.Render(buf, "funcs.tmpl.html", map[string]interface{}{"Name": "Fox Mulder"})
+	require.NoError(t, err)
+
+	require.Equal(t, "<html>\n<body>\n  <h1>Hello FOX MULDER</h1>\n\n</body>\n</html>\n", buf.String())
 }
