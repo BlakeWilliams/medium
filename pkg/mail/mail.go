@@ -6,14 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blakewilliams/medium/pkg/template"
+	"github.com/blakewilliams/medium/pkg/view"
 )
 
 // Mailer stores state required to connect to a mail server and send emails. It
-// requires a template.Renderer so that it can send HTML emails.
+// requires a view.Renderer so that it can send HTML emails.
 type Mailer struct {
 	DevMode  bool
-	renderer *template.Renderer
+	renderer *view.Renderer
 	From     string
 
 	// SentMessages is slice of mail that is collected when DevMode is true.
@@ -38,7 +38,7 @@ type Deliverer interface {
 
 // Creates a new mailer, accepting a renderer which is used to render HTML
 // emails, the mailer host, and the mailer auth.
-func New(deliverer Deliverer, renderer *template.Renderer) *Mailer {
+func New(deliverer Deliverer, renderer *view.Renderer) *Mailer {
 	mailer := &Mailer{
 		deliverer: deliverer,
 		renderer:  renderer,

@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/blakewilliams/medium/pkg/router"
-	"github.com/blakewilliams/medium/pkg/template"
+	"github.com/blakewilliams/medium/pkg/view"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSentViewer_Index(t *testing.T) {
 	r := router.New(router.DefaultActionFactory)
-	renderer := template.New("")
+	renderer := view.New("")
 	renderer.RegisterStaticTemplate("index", "welcome!")
 
 	mailer := New(&FakeDeliverer{}, renderer)
@@ -43,7 +43,7 @@ func TestSentViewer_Index(t *testing.T) {
 
 func TestSentViewer_Show(t *testing.T) {
 	r := router.New(router.DefaultActionFactory)
-	renderer := template.New("")
+	renderer := view.New("")
 	renderer.RegisterStaticTemplate("index", "welcome!")
 
 	mailer := New(&FakeDeliverer{}, renderer)
@@ -68,7 +68,7 @@ func TestSentViewer_Show(t *testing.T) {
 
 func TestSentViewer_Body(t *testing.T) {
 	r := router.New(router.DefaultActionFactory)
-	renderer := template.New("")
+	renderer := view.New("")
 	renderer.RegisterStaticTemplate("index", "welcome!")
 
 	mailer := New(&FakeDeliverer{}, renderer)

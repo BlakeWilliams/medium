@@ -3,7 +3,7 @@ package mail
 import (
 	"testing"
 
-	"github.com/blakewilliams/medium/pkg/template"
+	"github.com/blakewilliams/medium/pkg/view"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,7 +17,7 @@ func (f *FakeDeliverer) SendMail(addr string, addrs []string, msg []byte) error 
 }
 
 func TestMail_SentMail(t *testing.T) {
-	renderer := template.New("fixtures")
+	renderer := view.New("fixtures")
 	err := renderer.RegisterTemplate("welcome.html")
 	require.NoError(t, err)
 
@@ -44,7 +44,7 @@ func TestMail_SentMail(t *testing.T) {
 }
 
 func TestMail_SentMail_DevModeFalse(t *testing.T) {
-	renderer := template.New("fixtures")
+	renderer := view.New("fixtures")
 	err := renderer.RegisterTemplate("welcome.html")
 	require.NoError(t, err)
 

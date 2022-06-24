@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/blakewilliams/medium/pkg/router"
-	"github.com/blakewilliams/medium/pkg/template"
+	"github.com/blakewilliams/medium/pkg/view"
 )
 
 //go:embed views/index.html
@@ -18,7 +18,7 @@ var showTemplate string
 var layout string
 
 func RegisterSentMailViewer[T router.Action](router *router.Router[T], mailer *Mailer) {
-	renderer := template.New("")
+	renderer := view.New("")
 	renderer.RegisterStaticTemplate("index", indexTemplate)
 	renderer.RegisterStaticTemplate("show", showTemplate)
 
