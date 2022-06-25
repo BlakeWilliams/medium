@@ -33,7 +33,7 @@ func Middleware(config Config) router.Middleware {
 	logger := config.Logger
 	once := sync.Once{}
 
-	return func(c *router.BaseAction, next router.HandlerFunc[*router.BaseAction]) {
+	return func(c router.Action, next router.MiddlewareFunc) {
 		once.Do(func() {
 			go func() {
 				cmd := exec.Command("npx", "webpack", "serve")
