@@ -12,7 +12,7 @@ import (
 func TestHappyPath(t *testing.T) {
 	router := New(DefaultActionFactory)
 
-	router.Use(func(c *BaseAction, next HandlerFunc[*BaseAction]) {
+	router.Use(func(c Action, next MiddlewareFunc) {
 		c.Response().Header().Add("x-from-middleware", "wow")
 		next(c)
 	})
@@ -74,16 +74,16 @@ func TestRouter_MissingRoute_WithHandler(t *testing.T) {
 }
 
 type MyAction struct {
-	*BaseAction
+	Action
 	Data int
 }
 
 func TestCustomActionType(t *testing.T) {
-	router := New(func(bc *BaseAction) *MyAction {
-		return &MyAction{BaseAction: bc, Data: 1}
+	router := New(func(a Action) *MyAction {
+		return &MyAction{Action: a, Data: 1}
 	})
 
-	router.Use(func(c *BaseAction, next HandlerFunc[*BaseAction]) {
+	router.Use(func(c Action, next HandlerFunc[Action]) {
 		c.Response().Header().Add("x-from-middleware", "wow")
 		next(c)
 	})
@@ -102,11 +102,11 @@ func TestCustomActionType(t *testing.T) {
 }
 
 func TestCustomActionType_AroundHandler(t *testing.T) {
-	router := New(func(bc *BaseAction) *MyAction {
-		return &MyAction{BaseAction: bc, Data: 1}
+	router := New(func(a Action) *MyAction {
+		return &MyAction{Action: a, Data: 1}
 	})
 
-	router.Use(func(c *BaseAction, next HandlerFunc[*BaseAction]) {
+	router.Use(func(c Action, next HandlerFunc[Action]) {
 		c.Response().Header().Add("x-from-middleware", "wow")
 		next(c)
 	})

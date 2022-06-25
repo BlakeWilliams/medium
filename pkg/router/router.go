@@ -2,19 +2,26 @@ package router
 
 import (
 	"net/http"
+
+	"github.com/blakewilliams/medium/pkg/tell"
 )
 
 // Middleware is a function that is called before the action is executed.
 // See Router.Use for more information.
-type Middleware func(*BaseAction, HandlerFunc[*BaseAction])
+type Middleware func(c Action, next MiddlewareFunc)
 
-// AroundHandler represents a function that wraps a given route handler.
+// Convenience type for middleware handlers
+type MiddlewareFunc = HandlerFunc[Action]
+
+// AroundHandler represents a function that wraps a given route handler. This is
+// similar to middleware, but has access to the custom Action type and is called
+// after the middleware layer.
 type AroundHandler[T Action] func(T, func())
 
 // ActionFactory is a function that returns a new context for each request.
 // This is the entrypoint for the router and can be used to setup request data
 // like fetching the current user, reading session data, etc.
-type ActionFactory[T any] func(*BaseAction) T
+type ActionFactory[T any] func(Action) T
 
 // Router is a collection of Routes and is used to dispatch requests to the
 // correct Route handler.
@@ -25,6 +32,8 @@ type Router[T Action] struct {
 	contextFactory ActionFactory[T]
 	// Called when no route matches the request. Useful for rendering 404 pages.
 	missingRoute HandlerFunc[T]
+	// Notifier used to emit events for logging/tracing
+	Notifier tell.Notifier
 }
 
 // Creates a new Router with the given ContextFactory.
@@ -32,6 +41,7 @@ func New[T Action](contextFactory ActionFactory[T]) *Router[T] {
 	return &Router[T]{
 		contextFactory: contextFactory,
 		routes:         make([]*Route[T], 0),
+		Notifier:       tell.NullNotifier,
 	}
 }
 
@@ -54,25 +64,30 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	event := router.Notifier.Start(
+		"router.ServeHTTP",
+		tell.Payload{"request": *r, "route": matchingRoute},
+	)
+	defer event.Finish()
 
-	var handler HandlerFunc[*BaseAction]
+	var handler HandlerFunc[Action]
 
 	// TODO - there's no reason we need to re-build the middleware stack and
 	// around stack each request.
 	if matchingRoute != nil {
-		handler = func(baseAction *BaseAction) {
+		handler = func(baseAction Action) {
 			ac := router.contextFactory(baseAction)
 			wrappedHandler := router.wrapHandler((matchingRoute.handler))
 			wrappedHandler(ac)
 		}
 	} else if router.missingRoute != nil {
-		handler = func(baseAction *BaseAction) {
+		handler = func(baseAction Action) {
 			baseAction.Response().WriteHeader(http.StatusNotFound)
 			action := router.contextFactory(baseAction)
 			router.missingRoute(action)
 		}
 	} else {
-		handler = func(baseAction *BaseAction) {
+		handler = func(baseAction Action) {
 			baseAction.Response().WriteHeader(http.StatusNotFound)
 			baseAction.Write([]byte("404 not found"))
 		}
@@ -82,8 +97,8 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	next := handler
 
 	for i := len(router.middleware) - 1; i >= 0; i-- {
-		newNext := func(next HandlerFunc[*BaseAction], middleware Middleware) func(baseAction *BaseAction) {
-			return func(baseAction *BaseAction) {
+		newNext := func(next HandlerFunc[Action], middleware Middleware) func(baseAction Action) {
+			return func(baseAction Action) {
 				middleware(baseAction, next)
 			}
 		}(next, router.middleware[i])
@@ -118,12 +133,12 @@ func (r *Router[T]) Match(method string, path string, handler HandlerFunc[T]) {
 
 // Defines a new Route that responds to GET requests.
 func (r *Router[T]) Get(path string, handler HandlerFunc[T]) {
-	r.routes = append(r.routes, newRoute(http.MethodGet, path, handler))
+	r.Match(http.MethodGet, path, handler)
 }
 
 // Defines a new Route that responds to POST requests.
 func (r *Router[T]) Post(path string, handler HandlerFunc[T]) {
-	r.routes = append(r.routes, newRoute(http.MethodPost, path, handler))
+	r.Match(http.MethodPost, path, handler)
 }
 
 // Defines a handler that is called when no route matches the request.

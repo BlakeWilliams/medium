@@ -12,7 +12,7 @@ import (
 func TestRescue(t *testing.T) {
 	r := router.New(router.DefaultActionFactory)
 
-	handler := func(ac *router.BaseAction, err error) {
+	handler := func(ac router.Action, err error) {
 		ac.Write([]byte("oh no!"))
 	}
 
