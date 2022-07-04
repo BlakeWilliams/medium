@@ -12,8 +12,7 @@ func TestPubSub(t *testing.T) {
 
 	calls := 0
 	notifier.Subscribe("omg", func(e Event) {
-		calls++
-		e.Wait()
+		calls += 1
 	})
 
 	event := notifier.Start("omg", nil)
@@ -21,6 +20,8 @@ func TestPubSub(t *testing.T) {
 
 	event = notifier.Start("omg", nil)
 	event.Finish()
+
+	require.Equal(t, 2, calls)
 }
 
 func TestPubSub_NilSubscription(t *testing.T) {
@@ -33,15 +34,14 @@ func TestPubSub_NilSubscription(t *testing.T) {
 func TestEvent_Wait(t *testing.T) {
 	notifier := New()
 
-	beforeWait := time.Now().Add(-24 * time.Hour)
-	afterWait := time.Now().Add(-24 * time.Hour)
+	var start time.Time
+	var finish time.Time
 
 	done := make(chan struct{})
 	notifier.Subscribe("omg", func(e Event) {
 		defer close(done)
-		beforeWait = time.Now()
-		e.Wait()
-		afterWait = time.Now()
+		start = e.StartedAt
+		finish = e.FinishedAt
 	})
 
 	event := notifier.Start("omg", nil)
@@ -50,60 +50,24 @@ func TestEvent_Wait(t *testing.T) {
 
 	<-done
 
-	require.InDelta(t, beforeWait.Unix(), time.Now().Unix(), 1)
-	require.InDelta(t, afterWait.Unix(), time.Now().Unix(), 1)
+	require.NotZero(t, start)
+	require.NotZero(t, finish)
 
-	require.InDelta(t, afterWait.Sub(beforeWait).Milliseconds(), 50, 20)
-}
-
-func TestEvent_WaitMultiple(t *testing.T) {
-	notifier := New()
-
-	done := make(chan struct{})
-	notifier.Subscribe("omg", func(e Event) {
-		defer close(done)
-		e.Wait()
-		e.Wait()
-		e.Wait()
-		e.Wait()
-		e.Wait()
-	})
-
-	event := notifier.Start("omg", nil)
-	time.Sleep(time.Millisecond * 50)
-	event.Finish()
-
-	<-done
-}
-
-func TestEvent_WaitTimeout(t *testing.T) {
-	notifier := New()
-	notifier.MaxWait = time.Millisecond * 10
-
-	timer := time.NewTimer(20 * time.Millisecond)
-	defer timer.Stop()
-
-	done := make(chan struct{})
-	notifier.Subscribe("omg", func(e Event) {
-		defer close(done)
-		e.Wait()
-	})
-
-	notifier.Start("omg", nil)
-
-	select {
-	case <-done:
-	case <-timer.C:
-		require.Fail(t, "event.Wait() did not timeout")
-	}
+	require.InDelta(t, 50, finish.Sub(start).Milliseconds(), 20)
+	require.InDelta(t, 5, time.Since(finish).Milliseconds(), 5)
 }
 
 func TestInFlightEvent_FinishMultiple(t *testing.T) {
-	event := &InFlightEvent{
-		published: false,
-		finished:  make(chan struct{}),
-	}
+	notifier := New()
 
+	calls := 0
+	notifier.Subscribe("omg", func(e Event) {
+		calls++
+	})
+
+	event := notifier.Start("omg", nil)
 	event.Finish()
 	event.Finish()
+
+	require.Equal(t, calls, 1)
 }
