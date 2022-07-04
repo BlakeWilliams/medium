@@ -15,6 +15,8 @@ jobs:
       uses: actions/setup-go@v3
       with:
         go-version: 1.18
+    - name: Setup webpack
+      run: (cd pkg/webpack/test_env && npm install)
     - name: Build
       run: go build -v ./...
     - name: Test
