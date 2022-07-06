@@ -31,8 +31,8 @@ type Webpack struct {
 	Port     int
 	Notifier tell.Notifier
 
-	process *exec.Cmd
-	mu      sync.Mutex
+	cmd *exec.Cmd
+	mu  sync.Mutex
 }
 
 func New() *Webpack {
@@ -48,7 +48,7 @@ func (w *Webpack) Start(out io.Writer) error {
 	e := w.Notifier.Start("webpack.middleware.start", tell.Payload{})
 	defer e.Finish()
 
-	if w.process != nil && !w.process.ProcessState.Exited() {
+	if w.cmd != nil && !w.cmd.ProcessState.Exited() {
 		return errors.New("process is already running")
 	}
 
@@ -80,18 +80,26 @@ func (w *Webpack) Start(out io.Writer) error {
 	cmd.Env = append(cmd.Env, "NODE_ENV=development")
 	cmd.Stdout = out
 	cmd.Stderr = out
-	w.process = cmd
+	w.cmd = cmd
 
-	return cmd.Run()
+	return cmd.Start()
+}
+
+func (w *Webpack) Wait() error {
+	if w.cmd == nil {
+		return errors.New("webpack not running")
+	}
+
+	return w.cmd.Wait()
 }
 
 func (w *Webpack) Stop() error {
-	if w.process == nil {
+	if w.cmd == nil || w.cmd.Process == nil {
 		return errors.New("webpack not started")
 	}
 
-	err := w.process.Process.Signal(os.Interrupt)
-	w.process.Wait()
+	err := w.cmd.Process.Signal(os.Interrupt)
+	w.cmd.Wait()
 
 	return err
 }
@@ -105,6 +113,12 @@ func (w *Webpack) Stop() error {
 // This is not intended for production use, just for development.
 func (w *Webpack) Middleware() router.Middleware {
 	return func(c router.Action, next router.MiddlewareFunc) {
+		if w.cmd == nil || w.cmd.Process == nil {
+			c.ResponseWriter().WriteHeader(http.StatusInternalServerError)
+			c.ResponseWriter().Write([]byte("Webpack not running"))
+			return
+		}
+
 		if strings.HasPrefix(c.Request().URL.Path, "/assets/") {
 			// need context to coordinate timer and done statuses
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)

@@ -14,17 +14,13 @@ import (
 func TestWebpack(t *testing.T) {
 	webpack := New()
 	defer webpack.Stop()
+	webpack.BinPath = "./test_env/node_modules/.bin/webpack"
 	webpack.RootDir = "./test_env"
 	webpack.Port = 9381
-	var output []byte
+	output := new(bytes.Buffer)
 
-	done := make(chan struct{})
-	go func(done chan struct{}) {
-		defer close(done)
-		buf := bytes.NewBuffer(output)
-		err := webpack.Start(buf)
-		require.NoError(t, err, buf.String())
-	}(done)
+	err := webpack.Start(output)
+	require.NoError(t, err)
 
 	r := router.New(router.DefaultActionFactory)
 	r.Use(webpack.Middleware())
@@ -60,9 +56,8 @@ func TestWebpack(t *testing.T) {
 		})
 	}
 
-	err := webpack.Stop()
+	err = webpack.Stop()
 	require.NoError(t, err)
 
-	<-done
-	require.True(t, webpack.process.ProcessState.Exited())
+	require.True(t, webpack.cmd.ProcessState.Exited())
 }
