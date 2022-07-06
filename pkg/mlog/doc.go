@@ -8,7 +8,7 @@ Example:
 
 	func main() {
 		listen := ":8080"
-		logger := mlog.New(os.Stdout, mlog.JSONFormatter())
+		logger := mlog.New(os.Stdout, mlog.LevelDebug, mlog.JSONFormatter())
 		logger.Debug("Starting application", mlog.Fields{"listen": port})
 
 		// Expose logger with default fields to context

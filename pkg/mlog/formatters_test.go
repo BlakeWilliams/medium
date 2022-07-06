@@ -8,14 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type exampleJSONLog struct {
-	Level string
-	Msg   string
-	Foo   string
-	Bar   int
-	Time  time.Time
-}
-
 func TestJSONFormatter(t *testing.T) {
 	formatter := JSONFormatter{}
 	output := formatter.Format(LevelFatal, "i want to believe", Fields{"foo": "bar", "bar": 12})

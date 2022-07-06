@@ -14,6 +14,6 @@ func (w *writer) Print(text []byte) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	w.out.Write(text)
-	w.out.Write([]byte("\n"))
+	_, _ = w.out.Write(text)
+	_, _ = w.out.Write([]byte("\n"))
 }
