@@ -16,7 +16,7 @@ jobs:
       with:
         go-version: 1.18
     - name: Set up node
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v1
       with:
         node-version: 17
     - name: Setup webpack
