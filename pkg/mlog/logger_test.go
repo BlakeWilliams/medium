@@ -33,7 +33,7 @@ func TestContext(t *testing.T) {
 	for desc, tc := range testcases {
 		t.Run(desc, func(t *testing.T) {
 			var buf bytes.Buffer
-			logger := New(&buf, JSONFormatter{})
+			logger := New(&buf, LevelDebug, JSONFormatter{})
 			ctx := context.Background()
 			ctx = Inject(ctx, logger)
 
@@ -59,7 +59,7 @@ func TestContext(t *testing.T) {
 
 func TestWithDefaults(t *testing.T) {
 	var buf bytes.Buffer
-	logger := New(&buf, JSONFormatter{})
+	logger := New(&buf, LevelDebug, JSONFormatter{})
 	logger = logger.WithDefaults(Fields{"foo": "override me", "name": "Fox Mulder"})
 
 	logger.Info("the truth is out there", Fields{"foo": "bar", "bar": 12})
@@ -96,7 +96,7 @@ func TestWithDefaults(t *testing.T) {
 func TestWithDefaults_Nested(t *testing.T) {
 	ctx := context.Background()
 	var buf bytes.Buffer
-	logger := New(&buf, JSONFormatter{})
+	logger := New(&buf, LevelDebug, JSONFormatter{})
 	ctx = Inject(ctx, logger)
 	ctx, err := WithDefaults(ctx, Fields{"foo": "First default"})
 	require.NoError(t, err)

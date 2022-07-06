@@ -12,7 +12,7 @@ import (
 // Formatter is the interface used by Logger to take level, msg, and fields
 // and turn them into output for the logger.
 type Formatter interface {
-	Format(level string, msg string, fields Fields) []byte
+	Format(level Level, msg string, fields Fields) []byte
 }
 
 // PrettyFormatter is a struct that implements the Formatter interface and
@@ -25,7 +25,7 @@ type PrettyFormatter struct {
 var _ Formatter = (*PrettyFormatter)(nil)
 
 // Formats the provided arguments in a human-friendly format.
-func (pf PrettyFormatter) Format(level string, msg string, fields Fields) []byte {
+func (pf PrettyFormatter) Format(level Level, msg string, fields Fields) []byte {
 	levelColor := colorForLevel(level)
 
 	if !pf.Color {
@@ -33,7 +33,7 @@ func (pf PrettyFormatter) Format(level string, msg string, fields Fields) []byte
 	}
 
 	formatString := []string{
-		levelColor.Add(color.Bold).Sprintf("[%s]", strings.ToUpper(level)),
+		levelColor.Add(color.Bold).Sprintf("[%s]", strings.ToUpper(LevelName(level))),
 		msg,
 	}
 
@@ -54,10 +54,10 @@ var _ Formatter = (*JSONFormatter)(nil)
 // Formats the provided arguments into JSON. If a value provided by fields
 // returns an error when calling json.Marhshal it will be silently omitted from
 // the output.
-func (jf JSONFormatter) Format(level string, msg string, fields Fields) []byte {
+func (jf JSONFormatter) Format(level Level, msg string, fields Fields) []byte {
 	// Ensure the core values are encoded too
 	fields["msg"] = msg
-	fields["level"] = level
+	fields["level"] = LevelName(level)
 	fields["time"] = time.Now()
 
 	validFields := make(map[string]json.RawMessage, len(fields))
@@ -74,15 +74,15 @@ func (jf JSONFormatter) Format(level string, msg string, fields Fields) []byte {
 	return output
 }
 
-func colorForLevel(level string) *color.Color {
+func colorForLevel(level Level) *color.Color {
 	switch level {
-	case "info":
+	case LevelInfo:
 		return color.New(color.FgCyan)
-	case "debug":
+	case LevelDebug:
 		return color.New(color.FgGreen)
-	case "warn":
+	case LevelWarn:
 		return color.New(color.FgYellow)
-	case "error":
+	case LevelError, LevelFatal:
 		return color.New(color.FgRed)
 	default:
 		return color.New()
