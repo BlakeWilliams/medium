@@ -75,6 +75,7 @@ func (w *Webpack) Start(out io.Writer) error {
 
 		cmd.Dir = path
 	}
+	cmd.Env = append(cmd.Env, os.Environ()...)
 
 	cmd.Env = append(cmd.Env, "NODE_ENV=development")
 	cmd.Stdout = out
