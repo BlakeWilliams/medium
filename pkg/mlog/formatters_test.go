@@ -17,7 +17,7 @@ type exampleJSONLog struct {
 }
 
 func TestJSONFormatter(t *testing.T) {
-	formatter := JSONFormatter()
+	formatter := JSONFormatter{}
 	output := formatter.Format("level", "i want to believe", Fields{"foo": "bar", "bar": 12})
 
 	var log logLine
@@ -32,7 +32,7 @@ func TestJSONFormatter(t *testing.T) {
 }
 
 func TestJSONFormatter_IgnoreInvalidValues(t *testing.T) {
-	formatter := JSONFormatter()
+	formatter := JSONFormatter{}
 	badValue := make(chan int)
 	output := formatter.Format("level", "i want to believe", Fields{"baz": badValue, "bar": 12, "quux": "\"hi\""})
 	require.True(t, json.Valid(output), string(output))

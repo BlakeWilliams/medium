@@ -9,21 +9,22 @@ import (
 	"github.com/fatih/color"
 )
 
-type (
-	Formatter interface {
-		Format(level string, msg string, fields Fields) []byte
-	}
+// Formatter is the interface used by Logger to take level, msg, and fields
+// and turn them into output for the logger.
+type Formatter interface {
+	Format(level string, msg string, fields Fields) []byte
+}
 
-	PrettyFormatter struct {
-		Color bool
-	}
-
-	jsonFormatter struct {
-	}
-)
+// PrettyFormatter is a struct that implements the Formatter interface and
+// prints out user readable logs.
+type PrettyFormatter struct {
+	// Determines if logs should be colored or not.
+	Color bool
+}
 
 var _ Formatter = (*PrettyFormatter)(nil)
 
+// Formats the provided arguments in a human-friendly format.
 func (pf PrettyFormatter) Format(level string, msg string, fields Fields) []byte {
 	levelColor := colorForLevel(level)
 
@@ -44,9 +45,16 @@ func (pf PrettyFormatter) Format(level string, msg string, fields Fields) []byte
 	return []byte(strings.Join(formatString, " "))
 }
 
-var _ Formatter = (*jsonFormatter)(nil)
+// JSONFormatter implements the Formatter interface and outputs logs in the
+// JSON format.
+type JSONFormatter struct{}
 
-func (jf jsonFormatter) Format(level string, msg string, fields Fields) []byte {
+var _ Formatter = (*JSONFormatter)(nil)
+
+// Formats the provided arguments into JSON. If a value provided by fields
+// returns an error when calling json.Marhshal it will be silently omitted from
+// the output.
+func (jf JSONFormatter) Format(level string, msg string, fields Fields) []byte {
 	// Ensure the core values are encoded too
 	fields["msg"] = msg
 	fields["level"] = level
@@ -64,10 +72,6 @@ func (jf jsonFormatter) Format(level string, msg string, fields Fields) []byte {
 	output, _ := json.Marshal(validFields)
 
 	return output
-}
-
-func JSONFormatter() Formatter {
-	return jsonFormatter{}
 }
 
 func colorForLevel(level string) *color.Color {
