@@ -4,7 +4,7 @@ import (
 	"fmt"
 	htmlTemplate "html/template"
 	"io"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"sync"
 )
@@ -44,17 +44,12 @@ func (rt *fsTemplate) execute(w io.Writer, data map[string]interface{}) error {
 func (rt *fsTemplate) compile() error {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
-	path, err := filepath.Abs(filepath.Join(rt.renderer.rootPath, rt.path))
 
-	if err != nil {
+	if _, err := fs.Stat(rt.renderer.FS, rt.path); err != nil {
 		return fmt.Errorf("Could not register template: %e", err)
 	}
 
-	if _, err := os.Stat(path); err != nil {
-		return fmt.Errorf("Could not register template: %e", err)
-	}
-
-	tmpl := htmlTemplate.Must(htmlTemplate.New(filepath.Base(path)).Funcs(rt.renderer.funcMap).ParseFiles(path))
+	tmpl := htmlTemplate.Must(htmlTemplate.New(filepath.Base(rt.path)).Funcs(rt.renderer.funcMap).ParseFS(rt.renderer.FS, rt.path))
 	rt.htmlTemplate = tmpl
 
 	return nil

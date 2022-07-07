@@ -2,6 +2,7 @@ package view
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
@@ -9,7 +10,7 @@ import (
 )
 
 func TestBasicTemplate(t *testing.T) {
-	renderer := New("./fixtures")
+	renderer := New(os.DirFS("./fixtures"))
 	err := renderer.RegisterTemplate("hello.tmpl.html")
 	require.NoError(t, err)
 
@@ -21,7 +22,7 @@ func TestBasicTemplate(t *testing.T) {
 }
 
 func TestBasicTemplateWithHelper(t *testing.T) {
-	renderer := New("./fixtures")
+	renderer := New(os.DirFS("./fixtures"))
 	renderer.Helper("upcase", func(word string) string {
 		return strings.ToUpper(word)
 	})
@@ -36,7 +37,7 @@ func TestBasicTemplateWithHelper(t *testing.T) {
 }
 
 func TestTemplateWithLayout(t *testing.T) {
-	renderer := New("./fixtures")
+	renderer := New(os.DirFS("./fixtures"))
 	renderer.Helper("upcase", func(word string) string {
 		return strings.ToUpper(word)
 	})
@@ -56,7 +57,7 @@ func TestTemplateWithLayout(t *testing.T) {
 }
 
 func TestTemplate_HotReload_WithLayout(t *testing.T) {
-	renderer := New("./fixtures")
+	renderer := New(os.DirFS("./fixtures"))
 	renderer.Helper("upcase", func(word string) string {
 		return strings.ToUpper(word)
 	})
@@ -77,7 +78,7 @@ func TestTemplate_HotReload_WithLayout(t *testing.T) {
 }
 
 func TestStaticTemplates(t *testing.T) {
-	renderer := New("./fixtures")
+	renderer := New(os.DirFS("./fixtures"))
 	err := renderer.RegisterStaticTemplate("hello.tmpl.html", "hello {{.Name}} inside a static template")
 	require.NoError(t, err)
 
@@ -89,7 +90,7 @@ func TestStaticTemplates(t *testing.T) {
 }
 
 func TestStaticTemplates_WithLayout(t *testing.T) {
-	renderer := New("./fixtures")
+	renderer := New(os.DirFS("./fixtures"))
 	err := renderer.RegisterStaticTemplate("hello.tmpl.html", "hello {{.Name}} inside a static template")
 	require.NoError(t, err)
 	err = renderer.RegisterStaticLayout("layout.tmpl.html", "<static>{{.ChildContent}}</static>")
@@ -105,7 +106,7 @@ func TestStaticTemplates_WithLayout(t *testing.T) {
 }
 
 func TestAutoLayout(t *testing.T) {
-	renderer := New("./fixtures")
+	renderer := New(os.DirFS("./fixtures"))
 	renderer.Helper("upcase", func(word string) string {
 		return strings.ToUpper(word)
 	})

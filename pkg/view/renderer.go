@@ -7,7 +7,6 @@ import (
 	htmlTemplate "html/template"
 	"io"
 	"io/fs"
-	"path/filepath"
 	"strings"
 )
 
@@ -23,6 +22,7 @@ type Renderer struct {
 	funcMap       htmlTemplate.FuncMap
 	templateMap   map[string]renderable
 	layoutMap     map[string]renderable
+	FS            fs.FS
 }
 
 type renderable interface {
@@ -30,13 +30,17 @@ type renderable interface {
 	compile() error
 }
 
-// Creates a new Renderer.
-func New(path string) *Renderer {
+// Creates a new Renderer. A fs.FS is accepted which allows usage of go:embed
+// to embed all templates into the binary as a virtual file system.
+//
+// If not using embed, os.DirFS(path) can be passed to use the real filesystem
+// with path acting as the root directory.
+func New(rootFS fs.FS) *Renderer {
 	return &Renderer{
-		rootPath:    path,
 		funcMap:     make(htmlTemplate.FuncMap),
 		templateMap: make(map[string]renderable),
 		layoutMap:   make(map[string]renderable),
+		FS:          rootFS,
 	}
 }
 
@@ -48,7 +52,7 @@ func (r *Renderer) Helper(name string, helper interface{}) {
 // Registers all templates in the given directory. The layouts subdirectory, if
 // present, register all files within it as layouts.
 func (r *Renderer) AutoRegister() error {
-	err := filepath.WalkDir(r.rootPath, func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(r.FS, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -57,15 +61,10 @@ func (r *Renderer) AutoRegister() error {
 			return nil
 		}
 
-		relativePath, err := filepath.Rel(r.rootPath, path)
-		if err != nil {
-			return err
-		}
-
-		if strings.HasPrefix(relativePath, "layouts") {
-			r.RegisterLayout(relativePath)
+		if strings.HasPrefix(path, "layouts") {
+			r.RegisterLayout(path)
 		} else {
-			r.RegisterTemplate(relativePath)
+			r.RegisterTemplate(path)
 		}
 
 		return nil
