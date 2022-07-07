@@ -1,7 +1,9 @@
 package mail
 
 import (
+	"fmt"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/blakewilliams/medium/pkg/router"
@@ -11,7 +13,7 @@ import (
 
 func TestSentViewer_Index(t *testing.T) {
 	r := router.New(router.DefaultActionFactory)
-	renderer := view.New("")
+	renderer := view.New(os.DirFS("/"))
 	renderer.RegisterStaticTemplate("index", "welcome!")
 
 	mailer := New(&FakeDeliverer{}, renderer)
@@ -19,31 +21,34 @@ func TestSentViewer_Index(t *testing.T) {
 	mailer.From = "noreply@bar.net"
 
 	RegisterSentMailViewer(r, mailer)
+	fmt.Println("Here")
 
 	req := httptest.NewRequest("GET", "/_mailer", nil)
 	res := httptest.NewRecorder()
-	r.Run(res, req)
+	r.ServeHTTP(res, req)
+	fmt.Println("Here")
 
 	require.Equal(t, 200, res.Code)
 	require.Contains(t, res.Body.String(), "No mail has been sent")
 
-	mailer.Send("index", "foo@bar.net", "Welcome!", map[string]any{})
+	err := mailer.Send("index", "foo@bar.net", "Welcome!", map[string]any{})
+	require.NoError(t, err)
 
 	req = httptest.NewRequest("GET", "/_mailer", nil)
 	res = httptest.NewRecorder()
-	r.Run(res, req)
+	r.ServeHTTP(res, req)
 
 	require.Contains(t, res.Body.String(), `<a href="/_mailer/sent/0">`)
 	require.Contains(t, res.Body.String(), "foo@bar.net")
 	require.Contains(t, res.Body.String(), "Welcome!")
 	require.Contains(t, res.Body.String(), "noreply@bar.net")
 
-	r.Run(res, req)
+	r.ServeHTTP(res, req)
 }
 
 func TestSentViewer_Show(t *testing.T) {
 	r := router.New(router.DefaultActionFactory)
-	renderer := view.New("")
+	renderer := view.New(os.DirFS("/"))
 	renderer.RegisterStaticTemplate("index", "welcome!")
 
 	mailer := New(&FakeDeliverer{}, renderer)
@@ -56,19 +61,19 @@ func TestSentViewer_Show(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/_mailer/sent/0", nil)
 	res := httptest.NewRecorder()
-	r.Run(res, req)
+	r.ServeHTTP(res, req)
 
 	require.Contains(t, res.Body.String(), `<iframe src="/_mailer/sent/0/body">`)
 	require.Contains(t, res.Body.String(), "foo@bar.net")
 	require.Contains(t, res.Body.String(), "Welcome!")
 	require.Contains(t, res.Body.String(), "noreply@bar.net")
 
-	r.Run(res, req)
+	r.ServeHTTP(res, req)
 }
 
 func TestSentViewer_Body(t *testing.T) {
 	r := router.New(router.DefaultActionFactory)
-	renderer := view.New("")
+	renderer := view.New(os.DirFS("/"))
 	renderer.RegisterStaticTemplate("index", "welcome!")
 
 	mailer := New(&FakeDeliverer{}, renderer)
@@ -81,9 +86,9 @@ func TestSentViewer_Body(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/_mailer/sent/0/body", nil)
 	res := httptest.NewRecorder()
-	r.Run(res, req)
+	r.ServeHTTP(res, req)
 
 	require.Equal(t, res.Body.String(), "welcome!")
 
-	r.Run(res, req)
+	r.ServeHTTP(res, req)
 }

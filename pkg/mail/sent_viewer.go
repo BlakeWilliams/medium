@@ -1,6 +1,8 @@
 package mail
 
 import (
+	"context"
+	"embed"
 	_ "embed"
 	"strconv"
 
@@ -17,21 +19,24 @@ var showTemplate string
 //go:embed views/layout.html
 var layout string
 
+//go:embed views/*
+var viewFS embed.FS
+
 func RegisterSentMailViewer[T router.Action](router *router.Router[T], mailer *Mailer) {
-	renderer := view.New("")
-	renderer.RegisterStaticTemplate("index", indexTemplate)
-	renderer.RegisterStaticTemplate("show", showTemplate)
+	renderer := view.New(viewFS)
+	renderer.RegisterTemplate("views/index.html")
+	renderer.RegisterTemplate("views/show.html")
 
-	renderer.RegisterStaticLayout("layout", layout)
-	renderer.DefaultLayout = "layout"
+	renderer.RegisterLayout("views/layout.html")
+	renderer.DefaultLayout = "views/layout.html"
 
-	router.Get("/_mailer", func(c T) {
-		renderer.Render(c, "index", map[string]interface{}{
+	router.Get("/_mailer", func(ctx context.Context, c T) {
+		renderer.Render(c, "views/index.html", map[string]interface{}{
 			"SentMail": mailer.SentMail,
 		})
 	})
 
-	router.Get("/_mailer/sent/:index", func(c T) {
+	router.Get("/_mailer/sent/:index", func(ctx context.Context, c T) {
 		strIndex := c.Params()["index"]
 		index, err := strconv.Atoi(strIndex)
 
@@ -39,7 +44,7 @@ func RegisterSentMailViewer[T router.Action](router *router.Router[T], mailer *M
 			panic(err)
 		}
 
-		err = renderer.Render(c, "show", map[string]interface{}{
+		err = renderer.Render(c, "views/show.html", map[string]interface{}{
 			"Mail":  mailer.SentMail[index],
 			"Index": index,
 		})
@@ -49,7 +54,7 @@ func RegisterSentMailViewer[T router.Action](router *router.Router[T], mailer *M
 		}
 	})
 
-	router.Get("/_mailer/sent/:index/body", func(c T) {
+	router.Get("/_mailer/sent/:index/body", func(ctx context.Context, c T) {
 		strIndex := c.Params()["index"]
 		index, err := strconv.Atoi(strIndex)
 

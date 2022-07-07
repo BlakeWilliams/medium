@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"embed"
 	"testing"
 
 	"github.com/blakewilliams/medium/pkg/view"
@@ -16,9 +17,12 @@ func (f *FakeDeliverer) SendMail(addr string, addrs []string, msg []byte) error 
 	return nil
 }
 
+//go:embed fixtures/*
+var fixtureViewFS embed.FS
+
 func TestMail_SentMail(t *testing.T) {
-	renderer := view.New("fixtures")
-	err := renderer.RegisterTemplate("welcome.html")
+	renderer := view.New(fixtureViewFS)
+	err := renderer.RegisterTemplate("fixtures/welcome.html")
 	require.NoError(t, err)
 
 	fakeDeliverer := &FakeDeliverer{}
@@ -28,7 +32,7 @@ func TestMail_SentMail(t *testing.T) {
 
 	require.NoError(t, err)
 
-	err = mailer.Send("welcome.html", "foo@bar.net", "Hello!", map[string]interface{}{"Name": "Walter Skinner"})
+	err = mailer.Send("fixtures/welcome.html", "foo@bar.net", "Hello!", map[string]interface{}{"Name": "Walter Skinner"})
 	require.NoError(t, err)
 
 	require.Equal(t, 1, len(mailer.SentMail))
@@ -44,8 +48,8 @@ func TestMail_SentMail(t *testing.T) {
 }
 
 func TestMail_SentMail_DevModeFalse(t *testing.T) {
-	renderer := view.New("fixtures")
-	err := renderer.RegisterTemplate("welcome.html")
+	renderer := view.New(fixtureViewFS)
+	err := renderer.RegisterTemplate("fixtures/welcome.html")
 	require.NoError(t, err)
 
 	fakeDeliverer := &FakeDeliverer{}
@@ -54,7 +58,7 @@ func TestMail_SentMail_DevModeFalse(t *testing.T) {
 	mailer.From = "noreply@bar.net"
 	require.NoError(t, err)
 
-	err = mailer.Send("welcome.html", "foo@bar.net", "Hello!", map[string]interface{}{"Name": "Walter Skinner"})
+	err = mailer.Send("fixtures/welcome.html", "foo@bar.net", "Hello!", map[string]interface{}{"Name": "Walter Skinner"})
 	require.NoError(t, err)
 
 	require.Equal(t, 0, len(mailer.SentMail))
