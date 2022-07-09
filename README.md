@@ -7,7 +7,7 @@ These packages are likely to change often and without warning given the (current
 ## Packages
 
 - **pkg/rescue** - Basic rescue middleware for router.
-- **pkg/logger** - Basic logger middleware for router.
+- **pkg/httplogger** - Basic logger middleware for router.
 - **pkg/view** - Wraps the [`html/template`](https://golang.org/pkg/html/template/) package to provide a slightly more friendly and ergonimic interface for web application usage.
 - **pkg/session** - Struct based, cookie backed session management using HMAC signatures to validate session contents.
 - **pkg/mail** - Provides a basic mailer package that utilizes `pkg/template` for templating. Additionally provides a basic interface that can be used with `pkg/router` to see sent emails in development.
