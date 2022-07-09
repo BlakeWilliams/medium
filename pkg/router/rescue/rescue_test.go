@@ -1,6 +1,7 @@
 package rescue
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,14 +18,14 @@ func TestRescue(t *testing.T) {
 	}
 
 	r.Use(Middleware(handler))
-	r.Get("/", func(ac *router.BaseAction) {
+	r.Get("/", func(ctx context.Context, ac *router.BaseAction) {
 		panic("oh no!")
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	res := httptest.NewRecorder()
 
-	r.Run(res, req)
+	r.ServeHTTP(res, req)
 
 	require.Equal(t, "oh no!", res.Body.String())
 }
