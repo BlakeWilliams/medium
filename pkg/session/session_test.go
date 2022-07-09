@@ -13,7 +13,7 @@ type MyData struct {
 	Name   string
 }
 
-func TestSessionCookie(t *testing.T) {
+func TestStoreCookie(t *testing.T) {
 	verifier := NewVerifier("TheTruthIsOutThere")
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -40,7 +40,7 @@ func TestSessionCookie(t *testing.T) {
 	require.Equal(t, "Fox Mulder", session.Data.Name)
 	require.Equal(t, 500, session.Data.UserID)
 }
-func TestSessionCookie_WriteIfChanged(t *testing.T) {
+func TestStoreCookie_WriteIfChanged(t *testing.T) {
 	verifier := NewVerifier("TheTruthIsOutThere")
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
