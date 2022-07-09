@@ -2,6 +2,7 @@ package webpack
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,7 +20,7 @@ func TestWebpack(t *testing.T) {
 	webpack.Port = 9381
 	output := new(bytes.Buffer)
 
-	err := webpack.Start(output)
+	err := webpack.Start(context.TODO(), output)
 	require.NoError(t, err)
 
 	r := router.New(router.DefaultActionFactory)

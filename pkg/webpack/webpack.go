@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/blakewilliams/medium/pkg/mlog"
 	"github.com/blakewilliams/medium/pkg/router"
-	"github.com/blakewilliams/medium/pkg/tell"
 )
 
 // Webpack is used to start and stop a webpack dev server instance. It can be
@@ -28,8 +28,7 @@ type Webpack struct {
 	// Root dir to start webpack from
 	RootDir string
 	// Port for webpack to serve assets from
-	Port     int
-	Notifier tell.Notifier
+	Port int
 
 	cmd *exec.Cmd
 	mu  sync.Mutex
@@ -37,16 +36,13 @@ type Webpack struct {
 
 func New() *Webpack {
 	return &Webpack{
-		Notifier: tell.NullNotifier,
-		Port:     9008,
+		Port: 9008,
 	}
 }
 
-func (w *Webpack) Start(out io.Writer) error {
+func (w *Webpack) Start(ctx context.Context, out io.Writer) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	e := w.Notifier.Start("webpack.middleware.start", tell.Payload{})
-	defer e.Finish()
 
 	if w.cmd != nil && !w.cmd.ProcessState.Exited() {
 		return errors.New("process is already running")
@@ -60,10 +56,10 @@ func (w *Webpack) Start(out io.Writer) error {
 			return fmt.Errorf("could not start webpack: %w", err)
 		}
 
-		cmd = exec.Command(path, "serve", "--port", strconv.Itoa(w.Port))
+		cmd = exec.CommandContext(ctx, path, "serve", "--port", strconv.Itoa(w.Port))
 	} else {
 		// default to use npx
-		cmd = exec.Command("npx", "webpack", "serve", "--port", strconv.Itoa(w.Port))
+		cmd = exec.CommandContext(ctx, "npx", "webpack", "serve", "--port", strconv.Itoa(w.Port))
 	}
 
 	if w.RootDir != "" {
@@ -76,11 +72,13 @@ func (w *Webpack) Start(out io.Writer) error {
 		cmd.Dir = path
 	}
 	cmd.Env = append(cmd.Env, os.Environ()...)
-
 	cmd.Env = append(cmd.Env, "NODE_ENV=development")
+
 	cmd.Stdout = out
 	cmd.Stderr = out
 	w.cmd = cmd
+
+	mlog.Debug(ctx, "Starting webpack server", mlog.Fields{"port": w.Port})
 
 	return cmd.Start()
 }
@@ -112,21 +110,23 @@ func (w *Webpack) Stop() error {
 //
 // This is not intended for production use, just for development.
 func (w *Webpack) Middleware() router.Middleware {
-	return func(c router.Action, next router.MiddlewareFunc) {
-		if w.cmd == nil || w.cmd.Process == nil {
-			c.ResponseWriter().WriteHeader(http.StatusInternalServerError)
-			c.ResponseWriter().Write([]byte("Webpack not running"))
-			return
-		}
+	return func(ctx context.Context, action router.Action, next router.MiddlewareFunc) {
+		start := time.Now()
 
-		if strings.HasPrefix(c.Request().URL.Path, "/assets/") {
+		if strings.HasPrefix(action.Request().URL.Path, "/assets/") {
+			if w.cmd == nil || w.cmd.Process == nil {
+				action.ResponseWriter().WriteHeader(http.StatusInternalServerError)
+				action.ResponseWriter().Write([]byte("Webpack not running"))
+				return
+			}
+
 			// need context to coordinate timer and done statuses
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 			defer cancel()
 
 			go tryBackoff(ctx, func() {
-				fileName := strings.TrimPrefix(c.Request().URL.Path, "/assets/")
-				err := handleAssertRequest(c.Response(), w.Port, fileName, w.Notifier)
+				fileName := strings.TrimPrefix(action.Request().URL.Path, "/assets/")
+				err := handleAssertRequest(ctx, action.Response(), w.Port, fileName)
 
 				if err != nil {
 					var sysCallError *os.SyscallError
@@ -138,6 +138,7 @@ func (w *Webpack) Middleware() router.Middleware {
 							return
 						}
 					default:
+						mlog.Error(ctx, "webpack could not serve asset", mlog.Fields{"error": err, "path": action.Request().URL.Path})
 					}
 				}
 
@@ -147,12 +148,20 @@ func (w *Webpack) Middleware() router.Middleware {
 			select {
 			case <-ctx.Done():
 				if ctx.Err() == context.DeadlineExceeded {
-					c.ResponseWriter().WriteHeader(http.StatusInternalServerError)
-					c.ResponseWriter().Write([]byte("Serving asset timed out"))
+					mlog.Error(
+						ctx,
+						"Webpack asset request failed",
+						mlog.Fields{"path": action.Request().URL.Path, "error": ctx.Err()},
+					)
+					action.ResponseWriter().WriteHeader(http.StatusInternalServerError)
+					action.ResponseWriter().Write([]byte("Serving asset timed out"))
+					return
 				}
+
+				mlog.Debug(ctx, "webpack asset served", mlog.Fields{"path": action.Request().URL.Path, "duration": time.Since(start).String()})
 			}
 		} else {
-			next(c)
+			next(ctx, action)
 		}
 	}
 }
@@ -178,10 +187,13 @@ func tryBackoff(ctx context.Context, f func()) {
 	}
 }
 
-func handleAssertRequest(rw http.ResponseWriter, port int, path string, Notifier tell.Notifier) error {
-	res, err := http.Get(fmt.Sprintf("http://localhost:%d/%s", port, path))
-	event := Notifier.Start("webpack.serve.asset", tell.Payload{"path": path})
-	defer event.Finish()
+func handleAssertRequest(ctx context.Context, rw http.ResponseWriter, port int, path string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://localhost:%d/%s", port, path), nil)
+	if err != nil {
+		return err
+	}
+
+	res, err := http.DefaultClient.Do(req)
 
 	if err != nil {
 		return err
@@ -189,7 +201,6 @@ func handleAssertRequest(rw http.ResponseWriter, port int, path string, Notifier
 	defer res.Body.Close()
 
 	if res.StatusCode < 200 || res.StatusCode > 200 {
-		event.Payload["err"] = errors.New("asset not found")
 		rw.WriteHeader(http.StatusNotFound)
 		rw.Write([]byte("Asset not found"))
 
