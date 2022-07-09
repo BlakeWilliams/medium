@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -46,7 +45,6 @@ func TestContext(t *testing.T) {
 			var log logLine
 			err := json.Unmarshal(line, &log)
 			require.NoError(t, err)
-			fmt.Println(line)
 
 			require.Equal(t, tc.Level, log.Level)
 			require.Equal(t, "the truth is out there", log.Msg)

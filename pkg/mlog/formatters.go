@@ -27,14 +27,21 @@ var _ Formatter = (*PrettyFormatter)(nil)
 // Formats the provided arguments in a human-friendly format.
 func (pf PrettyFormatter) Format(level Level, msg string, fields Fields) []byte {
 	levelColor := colorForLevel(level)
+	boldLevelColor := colorForLevel(level).Add(color.Bold)
 
 	if !pf.Color {
 		levelColor.DisableColor()
 	}
 
+	formattedMsg := msg
+	if len(msg) < 28 {
+		formattedMsg = formattedMsg + strings.Repeat(" ", 28-len(msg))
+	}
+
+	formattedLevel := fmt.Sprintf("[%s]", prettyLevelName(level))
 	formatString := []string{
-		levelColor.Add(color.Bold).Sprintf("[%s]", strings.ToUpper(LevelName(level))),
-		msg,
+		boldLevelColor.Sprint(formattedLevel),
+		formattedMsg,
 	}
 
 	for key, value := range fields {
@@ -43,6 +50,23 @@ func (pf PrettyFormatter) Format(level Level, msg string, fields Fields) []byte 
 	}
 
 	return []byte(strings.Join(formatString, " "))
+}
+
+func prettyLevelName(level Level) string {
+	switch level {
+	case LevelDebug:
+		return "DBG"
+	case LevelInfo:
+		return "INF"
+	case LevelWarn:
+		return "WRN"
+	case LevelError:
+		return "ERR"
+	case LevelFatal:
+		return "FAT"
+	default:
+		return "UNK"
+	}
 }
 
 // JSONFormatter implements the Formatter interface and outputs logs in the
@@ -77,7 +101,7 @@ func (jf JSONFormatter) Format(level Level, msg string, fields Fields) []byte {
 func colorForLevel(level Level) *color.Color {
 	switch level {
 	case LevelInfo:
-		return color.New(color.FgCyan)
+		return color.New(color.FgBlue)
 	case LevelDebug:
 		return color.New(color.FgGreen)
 	case LevelWarn:
