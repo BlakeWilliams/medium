@@ -1,7 +1,6 @@
 package mail
 
 import (
-	"fmt"
 	"net/http/httptest"
 	"os"
 	"testing"
@@ -21,12 +20,10 @@ func TestSentViewer_Index(t *testing.T) {
 	mailer.From = "noreply@bar.net"
 
 	RegisterSentMailViewer(r, mailer)
-	fmt.Println("Here")
 
 	req := httptest.NewRequest("GET", "/_mailer", nil)
 	res := httptest.NewRecorder()
 	r.ServeHTTP(res, req)
-	fmt.Println("Here")
 
 	require.Equal(t, 200, res.Code)
 	require.Contains(t, res.Body.String(), "No mail has been sent")

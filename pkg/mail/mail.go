@@ -101,3 +101,7 @@ func (m *Mail) Send(deliverer Deliverer) error {
 
 	return nil
 }
+
+func (m *Mailer) ResetSentMail() {
+	m.SentMail = make([]Mail, 0)
+}
