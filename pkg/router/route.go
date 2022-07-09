@@ -5,9 +5,6 @@ import (
 	"strings"
 )
 
-// A function that handles a request.
-type HandlerFunc[C any] func(C)
-
 // A Route is a single route that can be matched against a request and holds a
 // reference to the handler used to handle the reques and holds a reference to
 // the handler used to handle the request.

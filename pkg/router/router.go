@@ -1,14 +1,16 @@
 package router
 
 import (
+	"context"
 	"net/http"
-
-	"github.com/blakewilliams/medium/pkg/tell"
 )
 
 // Middleware is a function that is called before the action is executed.
 // See Router.Use for more information.
-type Middleware func(c Action, next MiddlewareFunc)
+type Middleware func(ctx context.Context, c Action, next MiddlewareFunc)
+
+// A function that handles a request.
+type HandlerFunc[C any] func(context.Context, C)
 
 // Convenience type for middleware handlers
 type MiddlewareFunc = HandlerFunc[Action]
@@ -16,7 +18,7 @@ type MiddlewareFunc = HandlerFunc[Action]
 // AroundHandler represents a function that wraps a given route handler. This is
 // similar to middleware, but has access to the custom Action type and is called
 // after the middleware layer.
-type AroundHandler[T Action] func(T, func())
+type AroundHandler[T Action] func(ctx context.Context, action T, cb func(context.Context))
 
 // ActionFactory is a function that returns a new context for each request.
 // This is the entrypoint for the router and can be used to setup request data
@@ -29,67 +31,46 @@ type Router[T Action] struct {
 	routes         []*Route[T]
 	middleware     []Middleware
 	aroundHandlers []AroundHandler[T]
-	contextFactory ActionFactory[T]
+	actionFactory  ActionFactory[T]
 	// Called when no route matches the request. Useful for rendering 404 pages.
 	missingRoute HandlerFunc[T]
-	// Notifier used to emit events for logging/tracing
-	Notifier tell.Notifier
 }
 
 // Creates a new Router with the given ContextFactory.
-func New[T Action](contextFactory ActionFactory[T]) *Router[T] {
+func New[T Action](actionFactory ActionFactory[T]) *Router[T] {
 	return &Router[T]{
-		contextFactory: contextFactory,
-		routes:         make([]*Route[T], 0),
-		Notifier:       tell.NullNotifier,
+		actionFactory: actionFactory,
+		routes:        make([]*Route[T], 0),
 	}
-}
-
-// DEPRECATED: Use ServeHttp
-// Run is responsible dispatching requests to the correct handler.
-// First the middleware is run, then if there is a matching route, the handler
-// associated with that Route is called.
-func (router *Router[T]) Run(rw http.ResponseWriter, r *http.Request) {
-	router.ServeHTTP(rw, r)
 }
 
 func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	var matchingRoute *Route[T]
-	params := map[string]string{}
+	ctx := context.Background()
 
-	for _, route := range router.routes {
-		if ok, routeParams := route.IsMatch(r); ok {
-			matchingRoute = route
-			params = routeParams
-			break
-		}
-	}
-	event := router.Notifier.Start(
-		"router.ServeHTTP",
-		tell.Payload{"request": *r, "route": matchingRoute},
-	)
-	defer event.Finish()
-
+	matchingRoute, params := router.routeFor(r)
 	var handler HandlerFunc[Action]
 
 	// TODO - there's no reason we need to re-build the middleware stack and
 	// around stack each request.
 	if matchingRoute != nil {
-		handler = func(baseAction Action) {
-			ac := router.contextFactory(baseAction)
-			wrappedHandler := router.wrapHandler((matchingRoute.handler))
-			wrappedHandler(ac)
-		}
-	} else if router.missingRoute != nil {
-		handler = func(baseAction Action) {
-			baseAction.Response().WriteHeader(http.StatusNotFound)
-			action := router.contextFactory(baseAction)
-			router.missingRoute(action)
+		handler = func(ctx context.Context, baseAction Action) {
+			action := router.actionFactory(baseAction)
+			router.wrapHandler(matchingRoute.handler)(ctx, action)
 		}
 	} else {
-		handler = func(baseAction Action) {
-			baseAction.Response().WriteHeader(http.StatusNotFound)
-			baseAction.Write([]byte("404 not found"))
+		handler = func(ctx context.Context, baseAction Action) {
+			action := router.actionFactory(baseAction)
+
+			h := func(ctx context.Context, action T) {
+				if router.missingRoute != nil {
+					router.missingRoute(ctx, action)
+				} else {
+					action.Response().WriteHeader(http.StatusNotFound)
+					_, _ = action.Write([]byte("404 not found"))
+				}
+			}
+
+			router.wrapHandler(h)(ctx, action)
 		}
 	}
 
@@ -97,33 +78,41 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	next := handler
 
 	for i := len(router.middleware) - 1; i >= 0; i-- {
-		newNext := func(next HandlerFunc[Action], middleware Middleware) func(baseAction Action) {
-			return func(baseAction Action) {
-				middleware(baseAction, next)
+		newNext := func(next HandlerFunc[Action], middleware Middleware) func(ctx context.Context, baseAction Action) {
+			return func(ctx context.Context, baseAction Action) {
+				middleware(ctx, baseAction, next)
 			}
 		}(next, router.middleware[i])
 		next = newNext
 	}
 
-	next(action)
+	next(ctx, action)
 }
 
-func (r *Router[T]) wrapHandler(baseHandler HandlerFunc[T]) HandlerFunc[T] {
-	currentHandler := baseHandler
-
-	for i := len(r.aroundHandlers) - 1; i >= 0; i-- {
-		newHandler := func(handler AroundHandler[T], next HandlerFunc[T]) func(ac T) {
-			return func(ac T) {
-				handler(ac, func() {
-					next(ac)
-				})
-			}
-		}(r.aroundHandlers[i], currentHandler)
-
-		currentHandler = newHandler
+func (router *Router[T]) routeFor(r *http.Request) (*Route[T], map[string]string) {
+	for _, route := range router.routes {
+		if ok, params := route.IsMatch(r); ok {
+			return route, params
+		}
 	}
 
-	return currentHandler
+	return nil, nil
+}
+
+func (r *Router[T]) wrapHandler(handler HandlerFunc[T]) HandlerFunc[T] {
+	for i := len(r.aroundHandlers) - 1; i >= 0; i-- {
+		newHandler := func(handler AroundHandler[T], next HandlerFunc[T]) func(ctx context.Context, ac T) {
+			return func(ctx context.Context, ac T) {
+				handler(ctx, ac, func(newctx context.Context) {
+					next(newctx, ac)
+				})
+			}
+		}(r.aroundHandlers[i], handler)
+
+		handler = newHandler
+	}
+
+	return handler
 }
 
 // Match is used to add a new Route to the Router

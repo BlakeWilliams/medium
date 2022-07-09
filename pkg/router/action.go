@@ -10,11 +10,20 @@ func DefaultActionFactory(baseAction Action) *BaseAction {
 }
 
 func NewAction(rw http.ResponseWriter, r *http.Request, params map[string]string) *BaseAction {
-	return &BaseAction{
+	baseAction := &BaseAction{
 		responseWriter: rw,
 		request:        r,
 		params:         params,
+		status:         200,
 	}
+
+	newRw := &statusForwarder{
+		originalResponseWriter: rw,
+		onWriteHeader:          func(status int) { baseAction.status = status },
+	}
+	baseAction.SetResponseWriter(newRw)
+
+	return baseAction
 }
 
 type Action interface {
@@ -22,8 +31,13 @@ type Action interface {
 	// deprecated, use ResponseWriter
 	Response() http.ResponseWriter
 	ResponseWriter() http.ResponseWriter
+	// Sets this actions response writer. This can be used for wrapping the
+	// existing ResponseWriter with new functionality, such as capturing the
+	// status code.
+	SetResponseWriter(http.ResponseWriter)
 	Request() *http.Request
 	Params() map[string]string
+	Status() int
 	URL() *url.URL
 	Write(content []byte) (int, error)
 }
@@ -32,36 +46,45 @@ type BaseAction struct {
 	responseWriter http.ResponseWriter
 	request        *http.Request
 	params         map[string]string
+	status         int
 }
 
-func (bc BaseAction) Write(content []byte) (int, error) {
-	return bc.Response().Write(content)
+func (ba *BaseAction) Write(content []byte) (int, error) {
+	return ba.ResponseWriter().Write(content)
 }
 
 // deprecated, use ResponseWriter
-func (bc BaseAction) Response() http.ResponseWriter {
-	return bc.responseWriter
+func (ba *BaseAction) Response() http.ResponseWriter {
+	return ba.responseWriter
 }
 
-func (bc BaseAction) ResponseWriter() http.ResponseWriter {
-	return bc.responseWriter
+func (ba *BaseAction) ResponseWriter() http.ResponseWriter {
+	return ba.responseWriter
 }
 
-func (bc BaseAction) Request() *http.Request {
-	return bc.request
+func (ba *BaseAction) Request() *http.Request {
+	return ba.request
 }
 
-func (bc BaseAction) Params() map[string]string {
-	return bc.params
+func (ba *BaseAction) Params() map[string]string {
+	return ba.params
 }
 
-func (bc BaseAction) URL() *url.URL {
-	return bc.request.URL
+func (ba *BaseAction) URL() *url.URL {
+	return ba.request.URL
+}
+
+func (ba *BaseAction) Status() int {
+	return ba.status
 }
 
 // Redirects the user to the given path.
-func (bc BaseAction) Redirect(path string) {
-	http.Redirect(bc.Response(), bc.Request(), path, http.StatusFound)
+func (ba *BaseAction) Redirect(path string) {
+	http.Redirect(ba.Response(), ba.Request(), path, http.StatusFound)
+}
+
+func (ba *BaseAction) SetResponseWriter(rw http.ResponseWriter) {
+	ba.responseWriter = rw
 }
 
 var _ Action = &BaseAction{}
