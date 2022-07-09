@@ -157,3 +157,9 @@ func (r *Router[T]) Use(middleware Middleware) {
 func (r *Router[T]) Around(aroundHandler AroundHandler[T]) {
 	r.aroundHandlers = append(r.aroundHandlers, aroundHandler)
 }
+
+func (r *Router[T]) Base(path string) *RouteBase[T] {
+	return &RouteBase[T]{
+		router: r,
+	}
+}
