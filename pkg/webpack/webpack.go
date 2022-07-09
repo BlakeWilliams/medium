@@ -15,12 +15,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/blakewilliams/medium"
 	"github.com/blakewilliams/medium/pkg/mlog"
-	"github.com/blakewilliams/medium/pkg/router"
 )
 
 // Webpack is used to start and stop a webpack dev server instance. It can be
-// used with medium/pkg/router via the Middleware method, serving assets from
+// used with medium/pkg/medium via the Middleware method, serving assets from
 // the /assets path in the target application.
 type Webpack struct {
 	// Path to Webpack binary
@@ -103,14 +103,14 @@ func (w *Webpack) Stop() error {
 }
 
 // Middleware accepts a logger and returns a middleware that can be used in
-// conjunction with Router.Use.
+// conjunction with medium.Use.
 //
 // The middleware expects for webpack to be executable in the current working
 // directory.
 //
 // This is not intended for production use, just for development.
-func (w *Webpack) Middleware() router.Middleware {
-	return func(ctx context.Context, action router.Action, next router.MiddlewareFunc) {
+func (w *Webpack) Middleware() medium.Middleware {
+	return func(ctx context.Context, action medium.Action, next medium.MiddlewareFunc) {
 		start := time.Now()
 
 		if strings.HasPrefix(action.Request().URL.Path, "/assets/") {

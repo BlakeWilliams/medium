@@ -30,4 +30,4 @@ Example:
 		http.ListenAndServe(":8080", router)
 	}
 */
-package router
+package medium

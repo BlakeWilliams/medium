@@ -6,19 +6,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/blakewilliams/medium/pkg/router"
+	"github.com/blakewilliams/medium"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRescue(t *testing.T) {
-	r := router.New(router.DefaultActionFactory)
+	r := medium.New(medium.DefaultActionFactory)
 
-	handler := func(ac router.Action, err error) {
+	handler := func(ac medium.Action, err error) {
 		ac.Write([]byte("oh no!"))
 	}
 
 	r.Use(Middleware(handler))
-	r.Get("/", func(ctx context.Context, ac *router.BaseAction) {
+	r.Get("/", func(ctx context.Context, ac *medium.BaseAction) {
 		panic("oh no!")
 	})
 

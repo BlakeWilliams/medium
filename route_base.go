@@ -1,4 +1,4 @@
-package router
+package medium
 
 type (
 	RouteBase[T Action] struct {

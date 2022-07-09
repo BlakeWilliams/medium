@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/blakewilliams/medium/pkg/router"
+	"github.com/blakewilliams/medium"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +23,7 @@ func TestWebpack(t *testing.T) {
 	err := webpack.Start(context.TODO(), output)
 	require.NoError(t, err)
 
-	r := router.New(router.DefaultActionFactory)
+	r := medium.New(medium.DefaultActionFactory)
 	r.Use(webpack.Middleware())
 
 	testCases := map[string]struct {

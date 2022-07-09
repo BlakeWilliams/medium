@@ -1,4 +1,4 @@
-package router
+package medium
 
 import (
 	"net/http"

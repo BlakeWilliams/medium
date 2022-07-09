@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/blakewilliams/medium"
 	"github.com/blakewilliams/medium/pkg/mlog"
-	"github.com/blakewilliams/medium/pkg/router"
 )
 
 // Logger interface that is required by the middleware.
@@ -15,12 +15,12 @@ type Logger interface {
 }
 
 //  An ErrorHandler is a function that is called when an error occurs.
-type ErrorHandler func(router.Action, error)
+type ErrorHandler func(medium.Action, error)
 
-// Middleware accepts an ErrorHandler and returns a router.Middleware that will
+// Middleware accepts an ErrorHandler and returns a medium.Middleware that will
 // rescue errors that happen in middlewares that are called after it.
-func Middleware(handler ErrorHandler) router.Middleware {
-	return func(ctx context.Context, action router.Action, next router.MiddlewareFunc) {
+func Middleware(handler ErrorHandler) medium.Middleware {
+	return func(ctx context.Context, action medium.Action, next medium.MiddlewareFunc) {
 		defer func() {
 			err := recover()
 			if err != nil {

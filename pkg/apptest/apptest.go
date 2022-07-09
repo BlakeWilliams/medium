@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/blakewilliams/medium/pkg/router"
+	"github.com/blakewilliams/medium"
 )
 
 var RedirectCodes = []int{
@@ -20,20 +20,20 @@ var RedirectCodes = []int{
 }
 
 // Represents a request, or requests to a given medium application.
-type AppRequest[T router.Action] struct {
+type AppRequest[T medium.Action] struct {
 	CookieJar    http.CookieJar
 	LastResponse *httptest.ResponseRecorder
-	router       *router.Router[T]
+	medium       *medium.Router[T]
 }
 
-func New[T router.Action](router *router.Router[T]) *AppRequest[T] {
+func New[T medium.Action](medium *medium.Router[T]) *AppRequest[T] {
 	req := &AppRequest[T]{}
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		panic(err)
 	}
 	req.CookieJar = jar
-	req.router = router
+	req.medium = medium
 
 	return req
 }
@@ -105,6 +105,6 @@ func (ar *AppRequest[T]) makeRequest(method string, route string, headers http.H
 
 	ar.LastResponse = httptest.NewRecorder()
 
-	ar.router.ServeHTTP(ar.LastResponse, req)
+	ar.medium.ServeHTTP(ar.LastResponse, req)
 	ar.CookieJar.SetCookies(req.URL, ar.LastResponse.Result().Cookies())
 }
