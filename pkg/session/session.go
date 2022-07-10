@@ -76,6 +76,7 @@ func (s *Store[T]) Write(w http.ResponseWriter) error {
 
 	http.SetCookie(w, &http.Cookie{
 		Name:  s.name,
+		Path:  "/",
 		Value: string(encodedData),
 	})
 

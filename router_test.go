@@ -81,8 +81,10 @@ type MyAction struct {
 }
 
 func TestCustomActionType(t *testing.T) {
-	router := New(func(a Action) *MyAction {
-		return &MyAction{Action: a, Data: 1}
+	router := New(func(ctx context.Context, a Action, next func(context.Context, *MyAction)) {
+		action := &MyAction{Action: a, Data: 1}
+
+		next(ctx, action)
 	})
 
 	router.Use(func(ctx context.Context, a Action, next HandlerFunc[Action]) {
@@ -103,46 +105,10 @@ func TestCustomActionType(t *testing.T) {
 	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
 }
 
-func TestCustomActionType_AroundHandler(t *testing.T) {
-	router := New(func(a Action) *MyAction {
-		return &MyAction{Action: a, Data: 1}
-	})
-
-	router.Use(func(ctx context.Context, a Action, next HandlerFunc[Action]) {
-		a.Response().Header().Add("x-from-middleware", "wow")
-		next(ctx, a)
-	})
-
-	router.Around(func(ctx context.Context, c *MyAction, next func(context.Context)) {
-		c.Data += 1
-		next(ctx)
-		c.Data += 5
-	})
-
-	router.Around(func(ctx context.Context, c *MyAction, next func(context.Context)) {
-		c.Data *= 2
-		next(ctx)
-		c.Data += 5
-	})
-
-	router.Get("/hello/:name", func(ctx context.Context, c *MyAction) {
-		c.Write([]byte(fmt.Sprintf("hello %s, data %d", c.Params()["name"], c.Data)))
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
-	rw := httptest.NewRecorder()
-
-	router.ServeHTTP(rw, req)
-
-	// Data should be 4, since it starts at 1, first middleware adds 1, second
-	// middleware multiplies by 2
-	require.Equal(t, "hello Fox Mulder, data 4", rw.Body.String())
-	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
-}
-
 func TestContextPropagation(t *testing.T) {
-	router := New(func(a Action) *MyAction {
-		return &MyAction{Action: a, Data: 1}
+	router := New(func(ctx context.Context, a Action, next func(context.Context, *MyAction)) {
+		action := &MyAction{Action: a, Data: 1}
+		next(ctx, action)
 	})
 
 	router.Use(func(ctx context.Context, a Action, next HandlerFunc[Action]) {
@@ -151,18 +117,18 @@ func TestContextPropagation(t *testing.T) {
 		next(ctx, a)
 	})
 
-	router.Around(func(ctx context.Context, c *MyAction, next func(ctx context.Context)) {
+	router.Use(func(ctx context.Context, a Action, next HandlerFunc[Action]) {
 		ctx = context.WithValue(ctx, "bar", "baz")
-		c.Data += 1
-		next(ctx)
-		c.Data += 5
+		// c.Data += 1
+		next(ctx, a)
+		// c.Data += 5
 	})
 
-	router.Around(func(ctx context.Context, c *MyAction, next func(ctx context.Context)) {
+	router.Use(func(ctx context.Context, a Action, next HandlerFunc[Action]) {
 		ctx = context.WithValue(ctx, "baz", "qux")
-		c.Data *= 2
-		next(ctx)
-		c.Data += 5
+		// c.Data *= 2
+		next(ctx, a)
+		// c.Data += 5
 	})
 
 	router.Get("/hello/:name", func(ctx context.Context, c *MyAction) {
@@ -179,6 +145,31 @@ func TestContextPropagation(t *testing.T) {
 
 	// Data should be 4, since it starts at 1, first middleware adds 1, second
 	// middleware multiplies by 2
-	require.Equal(t, "hello Fox Mulder, data 4", rw.Body.String())
+	// require.Equal(t, "hello Fox Mulder, data 4", rw.Body.String())
+	require.Equal(t, "hello Fox Mulder, data 1", rw.Body.String())
 	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
+}
+
+func ExampleRouter_Register() {
+	// create a router for the application
+	router := New(DefaultActionFactory)
+
+	// define a middleware that sets the x-powered-by header
+	router.Use(func(ctx context.Context, a Action, next MiddlewareFunc) {
+		a.Response().Header().Add("x-powered-by", "medium")
+		next(ctx, a)
+	})
+
+	// define a new group
+	group := NewGroup(func(ctx context.Context, ba *BaseAction, next func(context.Context, *groupAction)) {
+		action := &groupAction{BaseAction: ba}
+		next(ctx, action)
+	})
+	// declare a route on the group
+	group.Get("/hello/:name", func(ctx context.Context, c *groupAction) {
+		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
+	})
+
+	// register the group with the router
+	router.Register(group)
 }

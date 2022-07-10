@@ -1,12 +1,15 @@
 package medium
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 )
 
-func DefaultActionFactory(baseAction Action) *BaseAction {
-	return baseAction.(*BaseAction)
+func DefaultActionFactory(ctx context.Context, baseAction Action, next func(context.Context, *BaseAction)) {
+	action := baseAction.(*BaseAction)
+
+	next(ctx, action)
 }
 
 func NewAction(rw http.ResponseWriter, r *http.Request, params map[string]string) *BaseAction {

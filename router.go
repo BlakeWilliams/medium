@@ -5,6 +5,10 @@ import (
 	"net/http"
 )
 
+type dispatchable[T Action] interface {
+	dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(context.Context, T))
+}
+
 // Middleware is a function that is called before the action is executed.
 // See Router.Use for more information.
 type Middleware func(ctx context.Context, c Action, next MiddlewareFunc)
@@ -15,25 +19,21 @@ type HandlerFunc[C any] func(context.Context, C)
 // Convenience type for middleware handlers
 type MiddlewareFunc = HandlerFunc[Action]
 
-// AroundHandler represents a function that wraps a given route handler. This is
-// similar to middleware, but has access to the custom Action type and is called
-// after the middleware layer.
-type AroundHandler[T Action] func(ctx context.Context, action T, cb func(context.Context))
-
 // ActionFactory is a function that returns a new context for each request.
 // This is the entrypoint for the router and can be used to setup request data
 // like fetching the current user, reading session data, etc.
-type ActionFactory[T any] func(Action) T
+type ActionFactory[T any] func(context.Context, Action, func(context.Context, T))
 
 // Router is a collection of Routes and is used to dispatch requests to the
 // correct Route handler.
 type Router[T Action] struct {
-	routes         []*Route[T]
-	middleware     []Middleware
-	aroundHandlers []AroundHandler[T]
-	actionFactory  ActionFactory[T]
+	routes        []*Route[T]
+	middleware    []Middleware
+	actionFactory ActionFactory[T]
 	// Called when no route matches the request. Useful for rendering 404 pages.
 	missingRoute HandlerFunc[T]
+
+	groups []dispatchable[T]
 }
 
 // Creates a new Router with the given ContextFactory.
@@ -47,30 +47,18 @@ func New[T Action](actionFactory ActionFactory[T]) *Router[T] {
 func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
-	matchingRoute, params := router.routeFor(r)
-	var handler HandlerFunc[Action]
+	ok, params, handler := router.dispatch(rw, r)
 
-	// TODO - there's no reason we need to re-build the middleware stack and
-	// around stack each request.
-	if matchingRoute != nil {
-		handler = func(ctx context.Context, baseAction Action) {
-			action := router.actionFactory(baseAction)
-			router.wrapHandler(matchingRoute.handler)(ctx, action)
-		}
-	} else {
-		handler = func(ctx context.Context, baseAction Action) {
-			action := router.actionFactory(baseAction)
-
-			h := func(ctx context.Context, action T) {
+	if !ok {
+		handler = func(ctx context.Context, action Action) {
+			router.actionFactory(ctx, action, func(ctx context.Context, action T) {
 				if router.missingRoute != nil {
 					router.missingRoute(ctx, action)
 				} else {
 					action.Response().WriteHeader(http.StatusNotFound)
 					_, _ = action.Write([]byte("404 not found"))
 				}
-			}
-
-			router.wrapHandler(h)(ctx, action)
+			})
 		}
 	}
 
@@ -89,6 +77,28 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	next(ctx, action)
 }
 
+func (router *Router[T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(context.Context, Action)) {
+	if route, params := router.routeFor(r); route != nil {
+		return true, params, func(ctx context.Context, action Action) {
+			router.actionFactory(ctx, action, func(ctx context.Context, action T) {
+				route.handler(ctx, action)
+			})
+		}
+	}
+
+	for _, group := range router.groups {
+		if ok, params, handler := group.dispatch(rw, r); ok {
+			return true, params, func(ctx context.Context, action Action) {
+				router.actionFactory(ctx, action, func(ctx context.Context, action T) {
+					handler(ctx, action)
+				})
+			}
+		}
+	}
+
+	return false, nil, nil
+}
+
 func (router *Router[T]) routeFor(r *http.Request) (*Route[T], map[string]string) {
 	for _, route := range router.routes {
 		if ok, params := route.IsMatch(r); ok {
@@ -97,22 +107,6 @@ func (router *Router[T]) routeFor(r *http.Request) (*Route[T], map[string]string
 	}
 
 	return nil, nil
-}
-
-func (r *Router[T]) wrapHandler(handler HandlerFunc[T]) HandlerFunc[T] {
-	for i := len(r.aroundHandlers) - 1; i >= 0; i-- {
-		newHandler := func(handler AroundHandler[T], next HandlerFunc[T]) func(ctx context.Context, ac T) {
-			return func(ctx context.Context, ac T) {
-				handler(ctx, ac, func(newctx context.Context) {
-					next(newctx, ac)
-				})
-			}
-		}(r.aroundHandlers[i], handler)
-
-		handler = newHandler
-	}
-
-	return handler
 }
 
 // Match is used to add a new Route to the Router
@@ -141,7 +135,7 @@ func (r *Router[T]) Missing(handler HandlerFunc[T]) {
 // middleware being treated as a low-level API.
 //
 // If you need access to the application specific action, you can use the
-// router.Around method.
+// routerFactory function passed to New or NewGroup.
 //
 // Middleware is called in the order that they are added. Middleware must call
 // next in order to continue the request, otherwise the request is halted.
@@ -149,13 +143,27 @@ func (r *Router[T]) Use(middleware Middleware) {
 	r.middleware = append(r.middleware, middleware)
 }
 
-// Defines a new AroundHandler that is called before matching routes or
-// missingRoute handlers are called.
+// Registers a group of routes that will be routed to in addition to the routes
+// defined on router.
 //
-// Around handlers are passed a function that should be called to continue the
-// request. If it is not called, the request is halted.
-func (r *Router[T]) Around(aroundHandler AroundHandler[T]) {
-	r.aroundHandlers = append(r.aroundHandlers, aroundHandler)
+// Use NewGroup to create a new group. Groups can be nested under routers or
+// within other groups. This enables the creation of context specific actions
+// that can inherit from their parent actions.
+//
+// Diagram of what the "inheritance" chain can look like:
+//     router[GlobalAction]
+// 	   |
+// 	   |_Group[GlobalAction, LoggedInAction]
+// 	   |
+// 	   |-Group[LoggedInAction, Teams]
+// 	   |
+// 	   |-Group[LoggedInAction, Settings]
+// 	   |
+// 	   |-Group[LoggedInAction, Admin]
+// 	     |
+// 	     |_ Group[Admin, SuperAdmin]
+func (r *Router[T]) Register(group dispatchable[T]) {
+	r.groups = append(r.groups, group)
 }
 
 func (r *Router[T]) Base(path string) *RouteBase[T] {

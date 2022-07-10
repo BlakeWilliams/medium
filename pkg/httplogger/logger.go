@@ -16,13 +16,17 @@ func Middleware(ctx context.Context, action medium.Action, next medium.Middlewar
 	mlog.Info(
 		ctx,
 		"Handling request",
-		mlog.Fields{"path": action.Request().URL.Path},
+		mlog.Fields{
+			"method": action.Request().Method,
+			"path":   action.Request().URL.Path,
+		},
 	)
 	next(ctx, action)
 	mlog.Info(
 		ctx,
 		"Request served",
 		mlog.Fields{
+			"method":   action.Request().Method,
 			"path":     action.Request().URL.Path,
 			"duration": time.Since(start).String(),
 			"status":   action.Status(),
