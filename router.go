@@ -63,18 +63,18 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	action := NewAction(rw, r, params)
-	next := handler
 
 	for i := len(router.middleware) - 1; i >= 0; i-- {
-		newNext := func(next HandlerFunc[Action], middleware Middleware) func(ctx context.Context, baseAction Action) {
+		newHandler := func(next HandlerFunc[Action], middleware Middleware) func(ctx context.Context, baseAction Action) {
 			return func(ctx context.Context, baseAction Action) {
 				middleware(ctx, baseAction, next)
 			}
-		}(next, router.middleware[i])
-		next = newNext
+		}(handler, router.middleware[i])
+
+		handler = newHandler
 	}
 
-	next(ctx, action)
+	handler(ctx, action)
 }
 
 func (router *Router[T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(context.Context, Action)) {
@@ -151,23 +151,17 @@ func (r *Router[T]) Use(middleware Middleware) {
 // that can inherit from their parent actions.
 //
 // Diagram of what the "inheritance" chain can look like:
-//     router[GlobalAction]
-// 	   |
-// 	   |_Group[GlobalAction, LoggedInAction]
-// 	   |
-// 	   |-Group[LoggedInAction, Teams]
-// 	   |
-// 	   |-Group[LoggedInAction, Settings]
-// 	   |
-// 	   |-Group[LoggedInAction, Admin]
-// 	     |
-// 	     |_ Group[Admin, SuperAdmin]
+// 	router[GlobalAction]
+// 	|
+// 	|_Group[GlobalAction, LoggedInAction]
+// 	|
+// 	|-Group[LoggedInAction, Teams]
+// 	|
+// 	|-Group[LoggedInAction, Settings]
+// 	|
+// 	|-Group[LoggedInAction, Admin]
+// 	  |
+// 	  |_ Group[Admin, SuperAdmin]
 func (r *Router[T]) Register(group dispatchable[T]) {
 	r.groups = append(r.groups, group)
-}
-
-func (r *Router[T]) Base(path string) *RouteBase[T] {
-	return &RouteBase[T]{
-		router: r,
-	}
 }

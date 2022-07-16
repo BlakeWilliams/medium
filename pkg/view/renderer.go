@@ -36,12 +36,23 @@ type renderable interface {
 // If not using embed, os.DirFS(path) can be passed to use the real filesystem
 // with path acting as the root directory.
 func New(rootFS fs.FS) *Renderer {
-	return &Renderer{
-		funcMap:     make(htmlTemplate.FuncMap),
+	renderer := &Renderer{
 		templateMap: make(map[string]renderable),
 		layoutMap:   make(map[string]renderable),
 		FS:          rootFS,
 	}
+
+	renderer.funcMap = make(htmlTemplate.FuncMap)
+	renderer.funcMap["Partial"] = func(name string, data map[string]interface{}) htmlTemplate.HTML {
+		response, err := renderer.RenderString(name, data)
+		if err != nil {
+			panic(err)
+		}
+
+		return response
+	}
+
+	return renderer
 }
 
 // Registers a helper usable by all templates.
