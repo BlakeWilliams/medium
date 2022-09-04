@@ -1,7 +1,6 @@
 package httplogger
 
 import (
-	"context"
 	"time"
 
 	"github.com/blakewilliams/medium"
@@ -10,20 +9,20 @@ import (
 
 // Middleware accepts an ErrorHandler and returns a medium.Middleware that will
 // rescue errors that happen in middlewares that are called after it.
-func Middleware(ctx context.Context, action medium.Action, next medium.MiddlewareFunc) {
+func Middleware(action medium.Action, next medium.MiddlewareFunc) {
 	start := time.Now()
 
 	mlog.Info(
-		ctx,
+		action.Context(),
 		"Handling request",
 		mlog.Fields{
 			"method": action.Request().Method,
 			"path":   action.Request().URL.Path,
 		},
 	)
-	next(ctx, action)
+	next(action)
 	mlog.Info(
-		ctx,
+		action.Context(),
 		"Request served",
 		mlog.Fields{
 			"method":   action.Request().Method,
@@ -36,8 +35,8 @@ func Middleware(ctx context.Context, action medium.Action, next medium.Middlewar
 
 // Sets the given logger on context so it's available to future middleware
 func ProviderMiddleware(logger mlog.Logger) medium.Middleware {
-	return func(ctx context.Context, action medium.Action, next medium.MiddlewareFunc) {
-		ctx = mlog.Inject(ctx, logger)
-		next(ctx, action)
+	return func(action medium.Action, next medium.MiddlewareFunc) {
+		action.WithContext(mlog.Inject(action.Context(), logger))
+		next(action)
 	}
 }

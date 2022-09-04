@@ -1,7 +1,6 @@
 package rescue
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/blakewilliams/medium"
@@ -20,21 +19,21 @@ type ErrorHandler func(medium.Action, error)
 // Middleware accepts an ErrorHandler and returns a medium.Middleware that will
 // rescue errors that happen in middlewares that are called after it.
 func Middleware(handler ErrorHandler) medium.Middleware {
-	return func(ctx context.Context, action medium.Action, next medium.MiddlewareFunc) {
+	return func(action medium.Action, next medium.MiddlewareFunc) {
 		defer func() {
 			err := recover()
 			if err != nil {
 				switch err.(type) {
 				case error:
-					mlog.Error(ctx, "rescued error in middleware", mlog.Fields{"error": err.(error)})
+					mlog.Error(action.Context(), "rescued error in middleware", mlog.Fields{"error": err.(error)})
 					handler(action, err.(error))
 				default:
-					mlog.Error(ctx, "rescued non-error in middleware", mlog.Fields{})
+					mlog.Error(action.Context(), "rescued non-error in middleware", mlog.Fields{})
 					handler(action, fmt.Errorf("Panic rescued: %v", err))
 				}
 			}
 		}()
 
-		next(ctx, action)
+		next(action)
 	}
 }

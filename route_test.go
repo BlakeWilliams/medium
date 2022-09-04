@@ -1,7 +1,6 @@
 package medium
 
 import (
-	"context"
 	"net/http/httptest"
 	"testing"
 
@@ -25,56 +24,64 @@ func TestRouteMatching(t *testing.T) {
 			want:        false,
 			params:      nil,
 		},
-		"path mismatch": {reqMethod: "GET",
+		"path mismatch": {
+			reqMethod:   "GET",
 			reqPath:     "/foo",
 			routeMethod: "GET",
 			routePath:   "/bar",
 			want:        false,
 			params:      nil,
 		},
-		"method mismatch": {reqMethod: "CONNECT",
+		"method mismatch": {
+			reqMethod:   "CONNECT",
 			reqPath:     "/foo",
 			routeMethod: "GET",
 			routePath:   "/foo",
 			want:        false,
 			params:      nil,
 		},
-		"valid root": {reqMethod: "GET",
+		"valid root": {
+			reqMethod:   "GET",
 			reqPath:     "/",
 			routeMethod: "GET",
 			routePath:   "/",
 			want:        true,
 			params:      map[string]string{},
 		},
-		"valid basic route": {reqMethod: "GET",
+		"valid basic route": {
+			reqMethod:   "GET",
 			reqPath:     "/foo",
 			routeMethod: "GET",
 			routePath:   "/foo",
 			want:        true,
 			params:      map[string]string{},
 		},
-		"valid long route": {reqMethod: "GET",
+		"valid long route": {
+			reqMethod:   "GET",
 			reqPath:     "/foo/baz/bar",
 			routeMethod: "GET",
 			routePath:   "/foo/baz/bar",
 			want:        true,
 			params:      map[string]string{},
 		},
-		"valid route params": {reqMethod: "GET",
+		"valid route params": {
+			reqMethod:   "GET",
 			reqPath:     "/foo/baz/bar?name=true",
 			routeMethod: "GET",
 			routePath:   "/foo/baz/bar",
 			want:        true,
 			params:      map[string]string{},
 		},
-		"valid dynamic route": {reqMethod: "GET",
+		"valid dynamic route": {
+			reqMethod:   "GET",
 			reqPath:     "/hello/greg",
 			routeMethod: "GET",
 			routePath:   "/hello/:name",
 			want:        true,
 			params:      map[string]string{"name": "greg"},
 		},
-		"valid multi dynamic route": {reqMethod: "GET",
+		"valid multi dynamic route": {
+			reqMethod:   "GET",
 			reqPath:     "/hello/greg/boston",
 			routeMethod: "GET",
 			routePath:   "/hello/:name/:location",
@@ -86,7 +93,7 @@ func TestRouteMatching(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			req := httptest.NewRequest(tc.reqMethod, tc.reqPath, nil)
-			route := newRoute(tc.routeMethod, tc.routePath, func(ctx context.Context, a *Action) {})
+			route := newRoute(tc.routeMethod, tc.routePath, func(a *Action) {})
 
 			got, params := route.IsMatch(req)
 
