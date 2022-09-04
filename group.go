@@ -22,6 +22,11 @@ func NewGroup[P Action, T Action](factory func(context.Context, P, func(context.
 	return &Group[P, T]{routes: make([]*Route[T], 0), actionFactory: factory}
 }
 
+func (g *Group[P, T]) Register(subgroup dispatchable[T]) dispatchable[T] {
+	g.subgroups = append(g.subgroups, subgroup)
+	return subgroup
+}
+
 // Match is used to add a new Route to the Router
 func (t *Group[P, T]) Match(method string, path string, handler HandlerFunc[T]) {
 	t.routes = append(t.routes, newRoute(method, path, handler))
@@ -35,6 +40,21 @@ func (t *Group[P, T]) Get(path string, handler HandlerFunc[T]) {
 // Defines a new Route that responds to POST requests.
 func (t *Group[P, T]) Post(path string, handler HandlerFunc[T]) {
 	t.Match(http.MethodPost, path, handler)
+}
+
+// Defines a new Route that responds to PUT requests.
+func (t *Group[P, T]) Put(path string, handler HandlerFunc[T]) {
+	t.Match(http.MethodPut, path, handler)
+}
+
+// Defines a new Route that responds to PATCH requests.
+func (t *Group[P, T]) Patch(path string, handler HandlerFunc[T]) {
+	t.Match(http.MethodPatch, path, handler)
+}
+
+// Defines a new Route that responds to DELETE requests.
+func (t *Group[P, T]) Delete(path string, handler HandlerFunc[T]) {
+	t.Match(http.MethodPatch, path, handler)
 }
 
 // Implements Dispatchable so groups can be registered on routers

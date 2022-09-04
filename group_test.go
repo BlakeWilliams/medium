@@ -11,6 +11,7 @@ import (
 )
 
 type groupAction struct {
+	value int
 	*BaseAction
 }
 
@@ -58,6 +59,42 @@ func TestGroup_Context(t *testing.T) {
 	})
 	group.Get("/hello/:name", func(ctx context.Context, c *groupAction) {
 		require.Equal(t, 2, ctx.Value("foo"))
+		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
+	})
+
+	router.Register(group)
+
+	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
+	rw := httptest.NewRecorder()
+
+	router.ServeHTTP(rw, req)
+
+	require.Equal(t, "hello Fox Mulder", rw.Body.String())
+	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
+}
+
+func TestGroup_Subgroup(t *testing.T) {
+	router := New(DefaultActionFactory)
+
+	router.Use(func(ctx context.Context, a Action, next MiddlewareFunc) {
+		a.Response().Header().Add("x-from-middleware", "wow")
+		next(ctx, a)
+	})
+
+	group := NewGroup(func(ctx context.Context, ba *BaseAction, next func(context.Context, *groupAction)) {
+		action := &groupAction{BaseAction: ba, value: 1}
+		next(ctx, action)
+	})
+
+	subgroup := NewGroup(func(ctx context.Context, ga *groupAction, next func(context.Context, *groupAction)) {
+		ga.value += 1
+		next(ctx, ga)
+	})
+
+	group.Register(subgroup)
+
+	subgroup.Get("/hello/:name", func(ctx context.Context, c *groupAction) {
+		require.Equal(t, 2, c.value)
 		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
 	})
 
