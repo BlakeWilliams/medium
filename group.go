@@ -1,8 +1,17 @@
 package medium
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 )
+
+// registerable represents a type that can be registered on a router or a group
+// to create subgroups/subrouters.
+type registerable[T Action] interface {
+	register(dispatchable[T])
+	prefix() string
+}
 
 // Group represents a collection of routes that share a common set of
 // Around/Before/After callbacks and Action type (T)
@@ -10,6 +19,34 @@ type Group[P Action, T Action] struct {
 	routes        []*Route[T]
 	actionFactory func(P, func(T))
 	subgroups     []dispatchable[T]
+	routePrefix   string
+}
+
+// Subrouter creates a new grouping of routes that will be routed to in addition
+// to the routes defined on the primery router. These routes will be prefixed
+// using the given prefix.
+//
+// Subrouters provide their own action factory, so common behavior can be
+// grouped via a custom action.
+//
+// Diagram of what the "inheritance" chain can look like:
+//
+//	router[GlobalAction]
+//	|
+//	|_Group[GlobalAction, LoggedInAction]
+//	|
+//	|-Group[LoggedInAction, Teams]
+//	|
+//	|-Group[LoggedInAction, Settings]
+//	|
+//	|-Group[LoggedInAction, Admin]
+//	  |
+//	  |_ Group[Admin, SuperAdmin]
+func Subrouter[P Action, T Action, Y registerable[P]](parent Y, prefix string, factory func(P, func(T))) *Group[P, T] {
+	group := NewGroup(parent, factory)
+	group.routePrefix = parent.prefix() + prefix
+
+	return group
 }
 
 // NewGroup creates a new route Group that can be used to group around
@@ -17,28 +54,35 @@ type Group[P Action, T Action] struct {
 //
 // A factory function is passed to the NewGroup, so that it can reference
 // fields from the parent action type.
-func NewGroup[P Action, T Action](factory func(P, func(T))) *Group[P, T] {
-	return &Group[P, T]{routes: make([]*Route[T], 0), actionFactory: factory}
-}
+func NewGroup[P Action, T Action, Y registerable[P]](parent Y, factory func(P, func(T))) *Group[P, T] {
+	group := &Group[P, T]{routes: make([]*Route[T], 0), actionFactory: factory}
+	parent.register(group)
 
-func (g *Group[P, T]) Register(subgroup dispatchable[T]) dispatchable[T] {
-	g.subgroups = append(g.subgroups, subgroup)
-	return subgroup
+	return group
 }
 
 // Match is used to add a new Route to the Router
-func (t *Group[P, T]) Match(method string, path string, handler HandlerFunc[T]) {
-	t.routes = append(t.routes, newRoute(method, path, handler))
+func (g *Group[P, T]) Match(method string, path string, handler HandlerFunc[T]) {
+	if g.routePrefix != "" {
+		if !strings.HasSuffix(g.routePrefix, "/") && !strings.HasPrefix(path, "/") {
+			path = g.routePrefix + "/" + path
+		} else {
+
+			path = g.routePrefix + path
+		}
+	}
+	fmt.Println(path)
+	g.routes = append(g.routes, newRoute(method, path, handler))
 }
 
 // Defines a new Route that responds to GET requests.
-func (t *Group[P, T]) Get(path string, handler HandlerFunc[T]) {
-	t.Match(http.MethodGet, path, handler)
+func (g *Group[P, T]) Get(path string, handler HandlerFunc[T]) {
+	g.Match(http.MethodGet, path, handler)
 }
 
 // Defines a new Route that responds to POST requests.
-func (t *Group[P, T]) Post(path string, handler HandlerFunc[T]) {
-	t.Match(http.MethodPost, path, handler)
+func (g *Group[P, T]) Post(path string, handler HandlerFunc[T]) {
+	g.Match(http.MethodPost, path, handler)
 }
 
 // Defines a new Route that responds to PUT requests.
@@ -47,13 +91,13 @@ func (t *Group[P, T]) Put(path string, handler HandlerFunc[T]) {
 }
 
 // Defines a new Route that responds to PATCH requests.
-func (t *Group[P, T]) Patch(path string, handler HandlerFunc[T]) {
-	t.Match(http.MethodPatch, path, handler)
+func (g *Group[P, T]) Patch(path string, handler HandlerFunc[T]) {
+	g.Match(http.MethodPatch, path, handler)
 }
 
 // Defines a new Route that responds to DELETE requests.
-func (t *Group[P, T]) Delete(path string, handler HandlerFunc[T]) {
-	t.Match(http.MethodPatch, path, handler)
+func (g *Group[P, T]) Delete(path string, handler HandlerFunc[T]) {
+	g.Match(http.MethodPatch, path, handler)
 }
 
 // Implements Dispatchable so groups can be registered on routers
@@ -87,4 +131,16 @@ func (g *Group[P, T]) routeFor(r *http.Request) (*Route[T], map[string]string) {
 	}
 
 	return nil, nil
+}
+
+// register implements the registerable interface and allows subgroups to be
+// registered and routed to.
+func (g *Group[P, T]) register(subgroup dispatchable[T]) {
+	g.subgroups = append(g.subgroups, subgroup)
+}
+
+// prefix implements the registerable interface and allows subgroups to register
+// routes with the correct path.
+func (g *Group[P, T]) prefix() string {
+	return g.routePrefix
 }

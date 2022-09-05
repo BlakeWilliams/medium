@@ -104,26 +104,3 @@ func TestCustomActionType(t *testing.T) {
 	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
 }
 
-func ExampleRouter_Register() {
-	// create a router for the application
-	router := New(DefaultActionFactory)
-
-	// define a middleware that sets the x-powered-by header
-	router.Use(func(a Action, next MiddlewareFunc) {
-		a.Response().Header().Add("x-powered-by", "medium")
-		next(a)
-	})
-
-	// define a new group
-	group := NewGroup(func(ba *BaseAction, next func(*groupAction)) {
-		action := &groupAction{BaseAction: ba}
-		next(action)
-	})
-	// declare a route on the group
-	group.Get("/hello/:name", func(c *groupAction) {
-		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
-	})
-
-	// register the group with the router
-	router.Register(group)
-}

@@ -44,7 +44,16 @@ func New[T Action](actionFactory ActionFactory[T]) *Router[T] {
 }
 
 func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	ok, params, handler := router.dispatch(rw, r)
+	ok, params, routeHandler := router.dispatch(rw, r)
+
+	var handler func(a Action)
+	if ok {
+		handler = func(action Action) {
+			router.actionFactory(action, func(action T) {
+				routeHandler(action)
+			})
+		}
+	}
 
 	if !ok {
 		handler = func(action Action) {
@@ -74,9 +83,9 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	handler(action)
 }
 
-func (router *Router[T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(Action)) {
+func (router *Router[T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(T)) {
 	if route, params := router.routeFor(r); route != nil {
-		return true, params, func(action Action) {
+		return true, params, func(action T) {
 			router.actionFactory(action, func(action T) {
 				route.handler(action)
 			})
@@ -85,7 +94,7 @@ func (router *Router[T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool
 
 	for _, group := range router.groups {
 		if ok, params, handler := group.dispatch(rw, r); ok {
-			return true, params, func(action Action) {
+			return true, params, func(action T) {
 				router.actionFactory(action, func(action T) {
 					handler(action)
 				})
@@ -121,6 +130,21 @@ func (r *Router[T]) Post(path string, handler HandlerFunc[T]) {
 	r.Match(http.MethodPost, path, handler)
 }
 
+// Defines a new Route that responds to PUT requests.
+func (r *Router[T]) Put(path string, handler HandlerFunc[T]) {
+	r.Match(http.MethodPut, path, handler)
+}
+
+// Defines a new Route that responds to PATCH requests.
+func (r *Router[T]) Patch(path string, handler HandlerFunc[T]) {
+	r.Match(http.MethodPut, path, handler)
+}
+
+// Defines a new Route that responds to DELETE requests.
+func (r *Router[T]) Delete(path string, handler HandlerFunc[T]) {
+	r.Match(http.MethodDelete, path, handler)
+}
+
 // Defines a handler that is called when no route matches the request.
 func (r *Router[T]) Missing(handler HandlerFunc[T]) {
 	r.missingRoute = handler
@@ -140,25 +164,8 @@ func (r *Router[T]) Use(middleware Middleware) {
 	r.middleware = append(r.middleware, middleware)
 }
 
-// Registers a group of routes that will be routed to in addition to the routes
-// defined on router.
-//
-// Use NewGroup to create a new group. Groups can be nested under routers or
-// within other groups. This enables the creation of context specific actions
-// that can inherit from their parent actions.
-//
-// Diagram of what the "inheritance" chain can look like:
-// 	router[GlobalAction]
-// 	|
-// 	|_Group[GlobalAction, LoggedInAction]
-// 	|
-// 	|-Group[LoggedInAction, Teams]
-// 	|
-// 	|-Group[LoggedInAction, Settings]
-// 	|
-// 	|-Group[LoggedInAction, Admin]
-// 	  |
-// 	  |_ Group[Admin, SuperAdmin]
-func (r *Router[T]) Register(group dispatchable[T]) {
+func (r *Router[T]) register(group dispatchable[T]) {
 	r.groups = append(r.groups, group)
 }
+
+func (r *Router[T]) prefix() string { return "" }
