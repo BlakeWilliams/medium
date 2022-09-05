@@ -1,7 +1,6 @@
 package medium
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 )
@@ -71,7 +70,6 @@ func (g *Group[P, T]) Match(method string, path string, handler HandlerFunc[T]) 
 			path = g.routePrefix + path
 		}
 	}
-	fmt.Println(path)
 	g.routes = append(g.routes, newRoute(method, path, handler))
 }
 
