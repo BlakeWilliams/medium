@@ -83,8 +83,8 @@ _ = server.ListenAndServe()
 
 Groups and subrouters allow you to consolidate behavior at the route level. For
 example, you can create a group that requires a user to be logged in, and then
-add routes to that group. If the user is not logged in, the group will redirect
-to the login page.
+add routes to that group. If the user is not logged in, any request to a handler
+in that group or nested subgroup/subrouter of the group will render a 404.
 
 ```go
 // Create a new router
@@ -145,6 +145,17 @@ teamRouter := router.Subrouter("/teams/:teamID", func(a AppAction, next func(a T
 // Add a route to render the team show page
 teamRouter.Get("/", func(a TeamAction) {
   a.Render(a, "team.html", map[string]any{"Team": a.currentTeam})
+})
+
+
+// Add a subrouter to the team router that will render the team settings page
+teamSettingsRouter := teamRouter.Subrouter("/settings", func(a TeamAction, next func(a TeamAction)) {
+  if !a.currentTeam.IsAdmin(a.currentUser) {
+    a.Render403()
+    return
+  }
+
+  next(a)
 })
 ```
 
