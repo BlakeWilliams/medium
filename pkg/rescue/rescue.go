@@ -13,7 +13,7 @@ type Logger interface {
 	Fatalf(format string, v ...any)
 }
 
-//  An ErrorHandler is a function that is called when an error occurs.
+// An ErrorHandler is a function that is called when an error occurs.
 type ErrorHandler func(medium.Action, error)
 
 // Middleware accepts an ErrorHandler and returns a medium.Middleware that will
@@ -28,7 +28,7 @@ func Middleware(handler ErrorHandler) medium.Middleware {
 					mlog.Error(action.Context(), "rescued error in middleware", mlog.Fields{"error": err.(error)})
 					handler(action, err.(error))
 				default:
-					mlog.Error(action.Context(), "rescued non-error in middleware", mlog.Fields{})
+					mlog.Error(action.Context(), "rescued non-error in middleware", mlog.Fields{"err": fmt.Sprintf("%v", err)})
 					handler(action, fmt.Errorf("Panic rescued: %v", err))
 				}
 			}

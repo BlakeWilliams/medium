@@ -2,7 +2,7 @@ package medium
 
 import (
 	"net/http"
-	"strings"
+	"net/url"
 )
 
 // registerable represents a type that can be registered on a router or a group
@@ -55,6 +55,7 @@ func Subrouter[P Action, T Action, Y registerable[P]](parent Y, prefix string, f
 // fields from the parent action type.
 func NewGroup[P Action, T Action, Y registerable[P]](parent Y, factory func(P, func(T))) *Group[P, T] {
 	group := &Group[P, T]{routes: make([]*Route[T], 0), actionFactory: factory}
+	group.routePrefix = parent.prefix()
 	parent.register(group)
 
 	return group
@@ -62,14 +63,17 @@ func NewGroup[P Action, T Action, Y registerable[P]](parent Y, factory func(P, f
 
 // Match is used to add a new Route to the Router
 func (g *Group[P, T]) Match(method string, path string, handler HandlerFunc[T]) {
-	if g.routePrefix != "" {
-		if !strings.HasSuffix(g.routePrefix, "/") && !strings.HasPrefix(path, "/") {
-			path = g.routePrefix + "/" + path
-		} else {
+	if path == "/" {
+		path = g.routePrefix
+	} else {
+		var err error
+		path, err = url.JoinPath(g.routePrefix, path)
 
-			path = g.routePrefix + path
+		if err != nil {
+			panic(err)
 		}
 	}
+
 	g.routes = append(g.routes, newRoute(method, path, handler))
 }
 

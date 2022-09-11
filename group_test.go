@@ -30,7 +30,6 @@ func TestGroup(t *testing.T) {
 		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
 	})
 
-
 	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
 	rw := httptest.NewRecorder()
 
@@ -90,13 +89,20 @@ func TestGroup_Subrouter(t *testing.T) {
 		next(ga)
 	})
 
-	// group.Register(subgroup)
-
 	subgroup.Get("/hello/:name", func(c *groupAction) {
 		require.Equal(t, 2, c.value)
 		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
 	})
 
+	subsubgroup := Subrouter(subgroup, "/baz", func(ga *groupAction, next func(*groupAction)) {
+		ga.value += 1
+		next(ga)
+	})
+
+	subsubgroup.Get("/hello/:name", func(c *groupAction) {
+		require.Equal(t, 3, c.value)
+		c.Write([]byte(fmt.Sprintf("hello again %s", c.Params()["name"])))
+	})
 
 	req := httptest.NewRequest(http.MethodGet, "/foo/bar/hello/Fox%20Mulder", nil)
 	rw := httptest.NewRecorder()
@@ -104,5 +110,13 @@ func TestGroup_Subrouter(t *testing.T) {
 	router.ServeHTTP(rw, req)
 
 	require.Equal(t, "hello Fox Mulder", rw.Body.String())
+	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
+
+	req = httptest.NewRequest(http.MethodGet, "/foo/bar/baz/hello/Fox%20Mulder", nil)
+	rw = httptest.NewRecorder()
+
+	router.ServeHTTP(rw, req)
+
+	require.Equal(t, "hello again Fox Mulder", rw.Body.String())
 	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
 }
