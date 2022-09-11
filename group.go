@@ -2,7 +2,7 @@ package medium
 
 import (
 	"net/http"
-	"net/url"
+	"regexp"
 )
 
 // registerable represents a type that can be registered on a router or a group
@@ -66,12 +66,7 @@ func (g *Group[P, T]) Match(method string, path string, handler HandlerFunc[T]) 
 	if path == "/" {
 		path = g.routePrefix
 	} else {
-		var err error
-		path, err = url.JoinPath(g.routePrefix, path)
-
-		if err != nil {
-			panic(err)
-		}
+		path = joinPath(g.routePrefix, path)
 	}
 
 	g.routes = append(g.routes, newRoute(method, path, handler))
@@ -145,4 +140,14 @@ func (g *Group[P, T]) register(subgroup dispatchable[T]) {
 // routes with the correct path.
 func (g *Group[P, T]) prefix() string {
 	return g.routePrefix
+}
+
+var trailingSlash = regexp.MustCompile("/+$")
+var leadingSlash = regexp.MustCompile("^/+")
+
+func joinPath(left string, right string) string {
+	left = trailingSlash.ReplaceAllString(left, "")
+	right = leadingSlash.ReplaceAllString(right, "")
+
+	return left + "/" + right
 }

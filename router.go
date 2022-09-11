@@ -10,7 +10,7 @@ type dispatchable[T Action] interface {
 
 // Middleware is a function that is called before the action is executed.
 // See Router.Use for more information.
-type Middleware func(c Action, next MiddlewareFunc)
+type Middleware func(c Action, next HandlerFunc[Action])
 
 // A function that handles a request.
 type HandlerFunc[C any] func(C)
