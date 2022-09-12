@@ -61,7 +61,8 @@ func NewGroup[P Action, T Action, Y registerable[P]](parent Y, factory func(P, f
 	return group
 }
 
-// Match is used to add a new Route to the Router
+// Match defines a new Route that responds to requests that match the given
+// method and path.
 func (g *Group[P, T]) Match(method string, path string, handler HandlerFunc[T]) {
 	if path == "/" {
 		path = g.routePrefix

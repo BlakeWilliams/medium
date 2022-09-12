@@ -18,17 +18,12 @@ type HandlerFunc[C any] func(C)
 // Convenience type for middleware handlers
 type MiddlewareFunc = HandlerFunc[Action]
 
-// ActionFactory is a function that returns a new action for each request.
-// This is the entrypoint for the router and can be used to setup request data
-// like fetching the current user, reading session data, etc.
-type ActionFactory[T any] func(Action, func(T))
-
 // Router is a collection of Routes and is used to dispatch requests to the
 // correct Route handler.
 type Router[T Action] struct {
 	routes        []*Route[T]
 	middleware    []Middleware
-	actionFactory ActionFactory[T]
+	actionFactory func(Action, func(T))
 	// Called when no route matches the request. Useful for rendering 404 pages.
 	missingRoute HandlerFunc[T]
 
@@ -36,7 +31,7 @@ type Router[T Action] struct {
 }
 
 // Creates a new Router with the given ContextFactory.
-func New[T Action](actionFactory ActionFactory[T]) *Router[T] {
+func New[T Action](actionFactory func(Action, func(T))) *Router[T] {
 	return &Router[T]{
 		actionFactory: actionFactory,
 		routes:        make([]*Route[T], 0),
