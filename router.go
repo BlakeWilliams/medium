@@ -132,7 +132,7 @@ func (r *Router[T]) Put(path string, handler HandlerFunc[T]) {
 
 // Defines a new Route that responds to PATCH requests.
 func (r *Router[T]) Patch(path string, handler HandlerFunc[T]) {
-	r.Match(http.MethodPut, path, handler)
+	r.Match(http.MethodPatch, path, handler)
 }
 
 // Defines a new Route that responds to DELETE requests.
@@ -164,3 +164,5 @@ func (r *Router[T]) register(group dispatchable[T]) {
 }
 
 func (r *Router[T]) prefix() string { return "" }
+
+var _ registerable[Action] = (*Router[Action])(nil)

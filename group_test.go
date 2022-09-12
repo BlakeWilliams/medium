@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,6 +13,44 @@ import (
 type groupAction struct {
 	value int
 	*BaseAction
+}
+
+func TestGroup_Routes(t *testing.T) {
+	testCases := map[string]struct {
+		method string
+	}{
+		"Get":    {method: http.MethodGet},
+		"Post":   {method: http.MethodPost},
+		"Put":    {method: http.MethodPut},
+		"Patch":  {method: http.MethodPatch},
+		"Delete": {method: http.MethodDelete},
+	}
+	router := New(DefaultActionFactory)
+
+	router.Use(func(a Action, next MiddlewareFunc) { next(a) })
+
+	group := NewGroup(router, func(ba *BaseAction, next func(*groupAction)) {
+		action := &groupAction{BaseAction: ba}
+		next(action)
+	})
+
+	for name, tc := range testCases {
+		path := reflect.ValueOf("/")
+		handler := reflect.ValueOf(func(c *groupAction) {
+			c.ResponseWriter().WriteHeader(http.StatusOK)
+			c.Write([]byte("hello"))
+		})
+
+		t.Run(name, func(t *testing.T) {
+			reflect.ValueOf(group).MethodByName(name).Call([]reflect.Value{path, handler})
+
+			req := httptest.NewRequest(tc.method, "/", nil)
+			rw := httptest.NewRecorder()
+			router.ServeHTTP(rw, req)
+
+			require.Equal(t, 200, rw.Code)
+		})
+	}
 }
 
 func TestGroup(t *testing.T) {

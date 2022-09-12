@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,6 +29,37 @@ func TestHappyPath(t *testing.T) {
 
 	require.Equal(t, "hello Fox Mulder", rw.Body.String())
 	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
+}
+
+func TestGroup_RouteMethods(t *testing.T) {
+	testCases := map[string]struct {
+		method string
+	}{
+		"Get":    {method: http.MethodGet},
+		"Post":   {method: http.MethodPost},
+		"Put":    {method: http.MethodPut},
+		"Patch":  {method: http.MethodPatch},
+		"Delete": {method: http.MethodDelete},
+	}
+	router := New(DefaultActionFactory)
+
+	for name, tc := range testCases {
+		path := reflect.ValueOf("/")
+		handler := reflect.ValueOf(func(c *BaseAction) {
+			c.ResponseWriter().WriteHeader(http.StatusOK)
+			c.Write([]byte("hello"))
+		})
+
+		t.Run(name, func(t *testing.T) {
+			reflect.ValueOf(router).MethodByName(name).Call([]reflect.Value{path, handler})
+
+			req := httptest.NewRequest(tc.method, "/", nil)
+			rw := httptest.NewRecorder()
+			router.ServeHTTP(rw, req)
+
+			require.Equal(t, 200, rw.Code)
+		})
+	}
 }
 
 func TestRouter_Post(t *testing.T) {
@@ -103,4 +135,3 @@ func TestCustomActionType(t *testing.T) {
 	require.Equal(t, "hello Fox Mulder, data 1", rw.Body.String())
 	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
 }
-
