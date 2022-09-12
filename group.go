@@ -70,6 +70,10 @@ func (g *Group[P, T]) Match(method string, path string, handler HandlerFunc[T]) 
 		path = joinPath(g.routePrefix, path)
 	}
 
+	if path == "" {
+		path = "/"
+	}
+
 	g.routes = append(g.routes, newRoute(method, path, handler))
 }
 
@@ -95,7 +99,7 @@ func (g *Group[P, T]) Patch(path string, handler HandlerFunc[T]) {
 
 // Defines a new Route that responds to DELETE requests.
 func (g *Group[P, T]) Delete(path string, handler HandlerFunc[T]) {
-	g.Match(http.MethodPatch, path, handler)
+	g.Match(http.MethodDelete, path, handler)
 }
 
 // Implements Dispatchable so groups can be registered on routers
