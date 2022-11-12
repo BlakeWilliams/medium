@@ -14,7 +14,7 @@ func TestHappyPath(t *testing.T) {
 	router := New(DefaultActionFactory)
 
 	router.Use(func(a Action, next MiddlewareFunc) {
-		a.Response().Header().Add("x-from-middleware", "wow")
+		a.ResponseWriter().Header().Add("x-from-middleware", "wow")
 		next(a)
 	})
 
@@ -119,7 +119,7 @@ func TestCustomActionType(t *testing.T) {
 	})
 
 	router.Use(func(a Action, next HandlerFunc[Action]) {
-		a.Response().Header().Add("x-from-middleware", "wow")
+		a.ResponseWriter().Header().Add("x-from-middleware", "wow")
 		next(a)
 	})
 

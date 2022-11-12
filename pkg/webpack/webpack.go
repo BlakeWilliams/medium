@@ -126,7 +126,7 @@ func (w *Webpack) Middleware() medium.Middleware {
 
 			go tryBackoff(ctx, func() {
 				fileName := strings.TrimPrefix(action.Request().URL.Path, "/assets/")
-				err := handleAssertRequest(ctx, action.Response(), w.Port, fileName)
+				err := handleAssertRequest(ctx, action.ResponseWriter(), w.Port, fileName)
 
 				if err != nil {
 					var sysCallError *os.SyscallError

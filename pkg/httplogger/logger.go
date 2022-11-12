@@ -21,21 +21,27 @@ func Middleware(action medium.Action, next medium.MiddlewareFunc) {
 		},
 	)
 	next(action)
+	fields := mlog.Fields{
+		"method":   action.Request().Method,
+		"path":     action.Request().URL.Path,
+		"duration": time.Since(start).String(),
+	}
+
+	if status, ok := action.(Statusable); ok {
+		fields["status"] = status.Status()
+	}
+
 	mlog.Info(
-		action.Context(),
+		action.Request().Context(),
 		"Request served",
-		mlog.Fields{
-			"method":   action.Request().Method,
-			"path":     action.Request().URL.Path,
-			"duration": time.Since(start).String(),
-			"status":   action.Status(),
-		},
+		fields,
 	)
 }
 
 // Sets the given logger on context so it's available to future middleware
 func ProviderMiddleware(logger mlog.Logger) medium.Middleware {
 	return func(action medium.Action, next medium.MiddlewareFunc) {
+		// action.WithContext(mlog.WithLogger(action.Request.Context(), logger))
 		action.WithContext(mlog.Inject(action.Context(), logger))
 		next(action)
 	}

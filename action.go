@@ -41,10 +41,6 @@ func NewAction(rw http.ResponseWriter, r *http.Request, params map[string]string
 // that embed `Action` and extend their struct with application/context specific
 // behavior.
 type Action interface {
-	// Redirect should redirect the current request to the given path
-	Redirect(path string)
-	// deprecated, use ResponseWriter
-	Response() http.ResponseWriter
 	// Returns the original http.ResponseWriter
 	ResponseWriter() http.ResponseWriter
 	// Sets this actions response writer. This can be used for wrapping the
@@ -56,19 +52,14 @@ type Action interface {
 	// Returns the parameters derived from the route in the router. e.g.
 	// `/user/:id` would make `id` available as a parameter.
 	Params() map[string]string
-	// Status returns the status code of the response at this point in the request.
-	Status() int
-	// URL returns the URL of the request. It is typically equivalent to calling
-	// action.Request().URL
-	URL() *url.URL
 	// Write implements the io.Writer interface and writes the given content to
 	// the response writer.
 	Write(content []byte) (int, error)
-
-	// Context returns this actions context
-	Context() context.Context
-	// WithContext sets this actions context
+	// WithContext should modify the underlying *http.Request context,
+	// allowing medium and non-medium context consumers to utilize context.
 	WithContext(context.Context) context.Context
+	// Context is a convenience function for returning Request().Context()
+	Context() context.Context
 }
 
 type BaseAction struct {
@@ -118,12 +109,12 @@ func (ba *BaseAction) SetResponseWriter(rw http.ResponseWriter) {
 }
 
 func (ba *BaseAction) Context() context.Context {
-	return ba.context
+	return ba.request.Context()
 }
 
 func (ba *BaseAction) WithContext(ctx context.Context) context.Context {
-	ba.context = ctx
-	return ctx
+	ba.request = ba.request.WithContext(ctx)
+	return ba.request.Context()
 }
 
 var _ Action = &BaseAction{}

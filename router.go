@@ -56,7 +56,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				if router.missingRoute != nil {
 					router.missingRoute(action)
 				} else {
-					action.Response().WriteHeader(http.StatusNotFound)
+					action.ResponseWriter().WriteHeader(http.StatusNotFound)
 					_, _ = action.Write([]byte("404 not found"))
 				}
 			})

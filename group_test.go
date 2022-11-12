@@ -57,7 +57,7 @@ func TestGroup(t *testing.T) {
 	router := New(DefaultActionFactory)
 
 	router.Use(func(a Action, next MiddlewareFunc) {
-		a.Response().Header().Add("x-from-middleware", "wow")
+		a.ResponseWriter().Header().Add("x-from-middleware", "wow")
 		next(a)
 	})
 
@@ -82,7 +82,7 @@ func TestGroup_Subgroup(t *testing.T) {
 	router := New(DefaultActionFactory)
 
 	router.Use(func(a Action, next MiddlewareFunc) {
-		a.Response().Header().Add("x-from-middleware", "wow")
+		a.ResponseWriter().Header().Add("x-from-middleware", "wow")
 		next(a)
 	})
 
@@ -114,7 +114,7 @@ func TestGroup_Subrouter(t *testing.T) {
 	router := New(DefaultActionFactory)
 
 	router.Use(func(a Action, next MiddlewareFunc) {
-		a.Response().Header().Add("x-from-middleware", "wow")
+		a.ResponseWriter().Header().Add("x-from-middleware", "wow")
 		next(a)
 	})
 
