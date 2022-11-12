@@ -7,6 +7,11 @@ import (
 	"github.com/blakewilliams/medium/pkg/mlog"
 )
 
+// Determines if status is available and loggable
+type Statusable interface {
+	Status() int
+}
+
 // Middleware accepts an ErrorHandler and returns a medium.Middleware that will
 // rescue errors that happen in middlewares that are called after it.
 func Middleware(action medium.Action, next medium.MiddlewareFunc) {
