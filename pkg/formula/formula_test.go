@@ -7,46 +7,46 @@ import (
 )
 
 type testStruct struct {
-	Name       string
-	ID         int
-	Balance    float32
-	Int8       int8
-	Int16      int16
-	Int32      int32
-	Int64      int64
-	Int        int
-	Uint8      uint8
-	Uint16     uint16
-	Uint32     uint32
-	Uint64     uint64
-	Uint       uint
-	Complex64  complex64
-	Complex128 complex128
-	Foods      []string
-	Truthy     bool
-	private    string
+	Name       string     `param:"name"`
+	ID         int        `param:"id"`
+	Balance    float32    `param:"balance"`
+	Int8       int8       `param:"int8"`
+	Int16      int16      `param:"int16"`
+	Int32      int32      `param:"int32"`
+	Int64      int64      `param:"int64"`
+	Int        int        `param:"int"`
+	Uint8      uint8      `param:"uint8"`
+	Uint16     uint16     `param:"uint16"`
+	Uint32     uint32     `param:"uint32"`
+	Uint64     uint64     `param:"uint64"`
+	Uint       uint       `param:"uint"`
+	Complex64  complex64  `param:"complex64"`
+	Complex128 complex128 `param:"complex128"`
+	Foods      []string   `param:"foods"`
+	Truthy     bool       `param:"truthy"`
+	private    string     `param:"private"`
 }
 
 func TestDecode(t *testing.T) {
 	target := testStruct{}
 	data := map[string][]string{
-		"Name":       {"Fox Mulder"},
-		"ID":         {"1"},
-		"Balance":    {"53.3"},
-		"Int8":       {"8"},
-		"Int16":      {"16"},
-		"Int32":      {"32"},
-		"Int64":      {"64"},
-		"Int":        {"100"},
-		"Uint8":      {"8"},
-		"Uint16":     {"16"},
-		"Uint32":     {"32"},
-		"Uint64":     {"64"},
-		"Uint":       {"1000"},
-		"Complex64":  {"64.5"},
-		"Complex128": {"128.5"},
-		"Foods":      {"pizza", "hotdogs"},
-		"Truthy":     {"true"},
+		"name":       {"Fox Mulder"},
+		"id":         {"1"},
+		"balance":    {"53.3"},
+		"int8":       {"8"},
+		"int16":      {"16"},
+		"int32":      {"32"},
+		"int64":      {"64"},
+		"int":        {"100"},
+		"uint8":      {"8"},
+		"uint16":     {"16"},
+		"uint32":     {"32"},
+		"uint64":     {"64"},
+		"uint":       {"1000"},
+		"complex64":  {"64.5"},
+		"complex128": {"128.5"},
+		"foods":      {"pizza", "hotdogs"},
+		"truthy":     {"true"},
 		"private":    {"omg"},
 	}
 
@@ -90,7 +90,7 @@ func TestNil(t *testing.T) {
 
 func TestFailedDecoding(t *testing.T) {
 	target := testStruct{}
-	data := map[string][]string{"Uint32": {"lol"}}
+	data := map[string][]string{"uint32": {"lol"}}
 
 	decoder := Decoder{}
 	err := decoder.Decode(&target, data)
@@ -100,13 +100,13 @@ func TestFailedDecoding(t *testing.T) {
 
 func TestDecodePointer(t *testing.T) {
 	target := struct {
-		Int     *int
-		Numbers *[]*int
+		Int     *int    `param:"int"`
+		Numbers *[]*int `param:"numbers"`
 	}{}
 
 	data := map[string][]string{
-		"Int":     {"5"},
-		"Numbers": {"5", "2"},
+		"int":     {"5"},
+		"numbers": {"5", "2"},
 	}
 
 	decoder := Decoder{}
@@ -126,13 +126,13 @@ func TestDecodePointer(t *testing.T) {
 
 func TestIgnoresDoublePointers(t *testing.T) {
 	target := struct {
-		Int     **int
-		Numbers **[]*int
+		Int     **int`param:"int"`
+		Numbers **[]*int `param:"numbers"`
 	}{}
 
 	data := map[string][]string{
-		"Int":     {"5"},
-		"Numbers": {"5", "2"},
+		"int":     {"5"},
+		"numbers": {"5", "2"},
 	}
 
 	decoder := Decoder{}

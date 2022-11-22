@@ -41,12 +41,13 @@ func decodeStruct(target any, value reflect.Value, src map[string][]string) erro
 		}
 
 		structField := value.Type().Field(i)
-		fieldName := structField.Name
+		tag, ok := structField.Tag.Lookup("param")
 
-		if tag, ok := structField.Tag.Lookup("param"); ok {
-			fieldName = tag
+		if !ok {
+			continue
 		}
-		fieldValue, ok := src[fieldName]
+
+		fieldValue, ok := src[tag]
 
 		if !ok {
 			continue
