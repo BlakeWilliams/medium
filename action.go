@@ -49,6 +49,8 @@ type Action interface {
 	SetResponseWriter(http.ResponseWriter)
 	// Returns the original http.Request
 	Request() *http.Request
+	// Sets the request for this action
+	SetRequest(*http.Request)
 	// Returns the parameters derived from the route in the router. e.g.
 	// `/user/:id` would make `id` available as a parameter.
 	Params() map[string]string
@@ -106,6 +108,10 @@ func (ba *BaseAction) Redirect(path string) {
 
 func (ba *BaseAction) SetResponseWriter(rw http.ResponseWriter) {
 	ba.responseWriter = rw
+}
+
+func (ba *BaseAction) SetRequest(r *http.Request) {
+	ba.request = r
 }
 
 func (ba *BaseAction) Context() context.Context {
