@@ -110,13 +110,13 @@ func (w *Webpack) Stop() error {
 //
 // This is not intended for production use, just for development.
 func (w *Webpack) Middleware() medium.Middleware {
-	return func(action medium.Action, next medium.MiddlewareFunc) {
+	return func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next medium.NextMiddleware) {
 		start := time.Now()
 
-		if strings.HasPrefix(action.Request().URL.Path, "/assets/") {
+		if strings.HasPrefix(r.URL.Path, "/assets/") {
 			if w.cmd == nil || w.cmd.Process == nil {
-				action.ResponseWriter().WriteHeader(http.StatusInternalServerError)
-				action.ResponseWriter().Write([]byte("Webpack not running"))
+				rw.WriteHeader(http.StatusInternalServerError)
+				rw.Write([]byte("Webpack not running"))
 				return
 			}
 
@@ -125,8 +125,8 @@ func (w *Webpack) Middleware() medium.Middleware {
 			defer cancel()
 
 			go tryBackoff(ctx, func() {
-				fileName := strings.TrimPrefix(action.Request().URL.Path, "/assets/")
-				err := handleAssertRequest(ctx, action.ResponseWriter(), w.Port, fileName)
+				fileName := strings.TrimPrefix(r.URL.Path, "/assets/")
+				err := handleAssertRequest(ctx, rw, w.Port, fileName)
 
 				if err != nil {
 					var sysCallError *os.SyscallError
@@ -138,7 +138,7 @@ func (w *Webpack) Middleware() medium.Middleware {
 							return
 						}
 					default:
-						mlog.Error(ctx, "webpack could not serve asset", mlog.Fields{"error": err, "path": action.Request().URL.Path})
+						mlog.Error(ctx, "webpack could not serve asset", mlog.Fields{"error": err, "path": r.URL.Path})
 					}
 				}
 
@@ -151,17 +151,17 @@ func (w *Webpack) Middleware() medium.Middleware {
 					mlog.Error(
 						ctx,
 						"Webpack asset request failed",
-						mlog.Fields{"path": action.Request().URL.Path, "error": ctx.Err()},
+						mlog.Fields{"path": r.URL.Path, "error": ctx.Err()},
 					)
-					action.ResponseWriter().WriteHeader(http.StatusInternalServerError)
-					action.ResponseWriter().Write([]byte("Serving asset timed out"))
+					rw.WriteHeader(http.StatusInternalServerError)
+					rw.Write([]byte("Serving asset timed out"))
 					return
 				}
 
-				mlog.Debug(ctx, "webpack asset served", mlog.Fields{"path": action.Request().URL.Path, "duration": time.Since(start).String()})
+				mlog.Debug(ctx, "webpack asset served", mlog.Fields{"path": r.URL.Path, "duration": time.Since(start).String()})
 			}
 		} else {
-			next(action)
+			next(ctx, r, rw)
 		}
 	}
 }

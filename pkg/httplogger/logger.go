@@ -1,6 +1,8 @@
 package httplogger
 
 import (
+	"context"
+	"net/http"
 	"time"
 
 	"github.com/blakewilliams/medium"
@@ -14,30 +16,30 @@ type Statusable interface {
 
 // Middleware accepts an ErrorHandler and returns a medium.Middleware that will
 // rescue errors that happen in middlewares that are called after it.
-func Middleware(action medium.Action, next medium.MiddlewareFunc) {
+func Middleware(ctx context.Context, r *http.Request, rw http.ResponseWriter, next medium.NextMiddleware) {
 	start := time.Now()
 
 	mlog.Info(
-		action.Context(),
+		ctx,
 		"Handling request",
 		mlog.Fields{
-			"method": action.Request().Method,
-			"path":   action.Request().URL.Path,
+			"method": r.Method,
+			"path":   r.URL.Path,
 		},
 	)
-	next(action)
+	next(ctx, r, rw)
 	fields := mlog.Fields{
-		"method":   action.Request().Method,
-		"path":     action.Request().URL.Path,
+		"method":   r.Method,
+		"path":     r.URL.Path,
 		"duration": time.Since(start).String(),
 	}
 
-	if status, ok := action.(Statusable); ok {
+	if status, ok := rw.(Statusable); ok {
 		fields["status"] = status.Status()
 	}
 
 	mlog.Info(
-		action.Request().Context(),
+		r.Context(),
 		"Request served",
 		fields,
 	)
@@ -45,9 +47,8 @@ func Middleware(action medium.Action, next medium.MiddlewareFunc) {
 
 // Sets the given logger on context so it's available to future middleware
 func ProviderMiddleware(logger mlog.Logger) medium.Middleware {
-	return func(action medium.Action, next medium.MiddlewareFunc) {
-		// action.WithContext(mlog.WithLogger(action.Request.Context(), logger))
-		action.WithContext(mlog.Inject(action.Context(), logger))
-		next(action)
+	return func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next medium.NextMiddleware) {
+		ctx = mlog.Inject(ctx, logger)
+		next(ctx, r, rw)
 	}
 }

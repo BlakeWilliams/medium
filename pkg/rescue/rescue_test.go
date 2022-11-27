@@ -1,6 +1,7 @@
 package rescue
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,12 +13,12 @@ import (
 func TestRescue(t *testing.T) {
 	r := medium.New(medium.DefaultActionFactory)
 
-	handler := func(ac medium.Action, err error) {
-		ac.Write([]byte("oh no!"))
+	handler := func(ctx context.Context, r *http.Request, rw http.ResponseWriter, err error) {
+		rw.Write([]byte("oh no!"))
 	}
 
 	r.Use(Middleware(handler))
-	r.Get("/", func(ac *medium.BaseAction) {
+	r.Get("/", func(ctx context.Context, ac *medium.BaseAction) {
 		panic("oh no!")
 	})
 

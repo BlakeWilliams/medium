@@ -1,6 +1,7 @@
 package medium
 
 import (
+	"context"
 	"net/http"
 	"regexp"
 )
@@ -16,7 +17,7 @@ type registerable[T Action] interface {
 // Around/Before/After callbacks and Action type (T)
 type Group[P Action, T Action] struct {
 	routes        []*Route[T]
-	actionFactory func(P, func(T))
+	actionFactory func(context.Context, P, func(context.Context, T))
 	subgroups     []dispatchable[T]
 	routePrefix   string
 }
@@ -41,7 +42,7 @@ type Group[P Action, T Action] struct {
 //	|-Group[LoggedInAction, Admin]
 //	  |
 //	  |_ Group[Admin, SuperAdmin]
-func Subrouter[P Action, T Action, Y registerable[P]](parent Y, prefix string, factory func(P, func(T))) *Group[P, T] {
+func Subrouter[P Action, T Action, Y registerable[P]](parent Y, prefix string, factory func(context.Context, P, func(context.Context, T))) *Group[P, T] {
 	group := NewGroup(parent, factory)
 	group.routePrefix = parent.prefix() + prefix
 
@@ -53,7 +54,7 @@ func Subrouter[P Action, T Action, Y registerable[P]](parent Y, prefix string, f
 //
 // A factory function is passed to the NewGroup, so that it can reference
 // fields from the parent action type.
-func NewGroup[P Action, T Action, Y registerable[P]](parent Y, factory func(P, func(T))) *Group[P, T] {
+func NewGroup[P Action, T Action, Y registerable[P]](parent Y, factory func(context.Context, P, func(context.Context, T))) *Group[P, T] {
 	group := &Group[P, T]{routes: make([]*Route[T], 0), actionFactory: factory}
 	group.routePrefix = parent.prefix()
 	parent.register(group)
@@ -103,20 +104,20 @@ func (g *Group[P, T]) Delete(path string, handler HandlerFunc[T]) {
 }
 
 // Implements Dispatchable so groups can be registered on routers
-func (g *Group[P, T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(P)) {
+func (g *Group[P, T]) dispatch(ctx context.Context, rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(context.Context, P)) {
 	if route, params := g.routeFor(r); route != nil {
-		return true, params, func(action P) {
-			g.actionFactory(action, func(action T) {
-				route.handler(action)
+		return true, params, func(ctx context.Context, action P) {
+			g.actionFactory(ctx, action, func(ctx context.Context, action T) {
+				route.handler(ctx, action)
 			})
 		}
 	}
 
 	for _, group := range g.subgroups {
-		if ok, params, handler := group.dispatch(rw, r); ok {
-			return true, params, func(action P) {
-				g.actionFactory(action, func(action T) {
-					handler(action)
+		if ok, params, handler := group.dispatch(ctx, rw, r); ok {
+			return true, params, func(ctx context.Context, action P) {
+				g.actionFactory(ctx, action, func(ctx context.Context, action T) {
+					handler(ctx, action)
 				})
 			}
 		}

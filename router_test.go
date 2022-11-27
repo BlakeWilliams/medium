@@ -1,6 +1,7 @@
 package medium
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -13,12 +14,12 @@ import (
 func TestHappyPath(t *testing.T) {
 	router := New(DefaultActionFactory)
 
-	router.Use(func(a Action, next MiddlewareFunc) {
-		a.ResponseWriter().Header().Add("x-from-middleware", "wow")
-		next(a)
+	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
+		rw.Header().Add("x-from-middleware", "wow")
+		next(ctx, r, rw)
 	})
 
-	router.Get("/hello/:name", func(c *BaseAction) {
+	router.Get("/hello/:name", func(ctx context.Context, c *BaseAction) {
 		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
 	})
 
@@ -45,7 +46,7 @@ func TestGroup_RouteMethods(t *testing.T) {
 
 	for name, tc := range testCases {
 		path := reflect.ValueOf("/")
-		handler := reflect.ValueOf(func(c *BaseAction) {
+		handler := reflect.ValueOf(func(ctx context.Context, c *BaseAction) {
 			c.ResponseWriter().WriteHeader(http.StatusOK)
 			c.Write([]byte("hello"))
 		})
@@ -65,7 +66,7 @@ func TestGroup_RouteMethods(t *testing.T) {
 func TestRouter_Post(t *testing.T) {
 	router := New(DefaultActionFactory)
 
-	router.Post("/hello/:name", func(c *BaseAction) {
+	router.Post("/hello/:name", func(ctx context.Context, c *BaseAction) {
 		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
 	})
 
@@ -92,7 +93,7 @@ func TestRouter_MissingRoute_NoHandler(t *testing.T) {
 func TestRouter_MissingRoute_WithHandler(t *testing.T) {
 	router := New(DefaultActionFactory)
 
-	router.Missing(func(c *BaseAction) {
+	router.Missing(func(ctx context.Context, c *BaseAction) {
 		c.ResponseWriter().WriteHeader(http.StatusNotFound)
 		c.Write([]byte("Sorry, can't find that page."))
 	})
@@ -112,18 +113,18 @@ type MyAction struct {
 }
 
 func TestCustomActionType(t *testing.T) {
-	router := New(func(a Action, next func(*MyAction)) {
+	router := New(func(ctx context.Context, a Action, next func(context.Context, *MyAction)) {
 		action := &MyAction{Action: a, Data: 1}
 
-		next(action)
+		next(ctx, action)
 	})
 
-	router.Use(func(a Action, next HandlerFunc[Action]) {
-		a.ResponseWriter().Header().Add("x-from-middleware", "wow")
-		next(a)
+	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
+		rw.Header().Add("x-from-middleware", "wow")
+		next(ctx, r, rw)
 	})
 
-	router.Get("/hello/:name", func(c *MyAction) {
+	router.Get("/hello/:name", func(ctx context.Context, c *MyAction) {
 		c.Write([]byte(fmt.Sprintf("hello %s, data %d", c.Params()["name"], c.Data)))
 	})
 

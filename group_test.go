@@ -1,6 +1,7 @@
 package medium
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -27,16 +28,18 @@ func TestGroup_Routes(t *testing.T) {
 	}
 	router := New(DefaultActionFactory)
 
-	router.Use(func(a Action, next MiddlewareFunc) { next(a) })
+	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
+		next(ctx, r, rw)
+	})
 
-	group := NewGroup(router, func(ba *BaseAction, next func(*groupAction)) {
+	group := NewGroup(router, func(ctx context.Context, ba *BaseAction, next func(context.Context, *groupAction)) {
 		action := &groupAction{BaseAction: ba}
-		next(action)
+		next(ctx, action)
 	})
 
 	for name, tc := range testCases {
 		path := reflect.ValueOf("/")
-		handler := reflect.ValueOf(func(c *groupAction) {
+		handler := reflect.ValueOf(func(ctx context.Context, c *groupAction) {
 			c.ResponseWriter().WriteHeader(http.StatusOK)
 			c.Write([]byte("hello"))
 		})
@@ -56,16 +59,16 @@ func TestGroup_Routes(t *testing.T) {
 func TestGroup(t *testing.T) {
 	router := New(DefaultActionFactory)
 
-	router.Use(func(a Action, next MiddlewareFunc) {
-		a.ResponseWriter().Header().Add("x-from-middleware", "wow")
-		next(a)
+	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
+		rw.Header().Add("x-from-middleware", "wow")
+		next(ctx, r, rw)
 	})
 
-	group := NewGroup(router, func(ba *BaseAction, next func(*groupAction)) {
+	group := NewGroup(router, func(ctx context.Context, ba *BaseAction, next func(context.Context, *groupAction)) {
 		action := &groupAction{BaseAction: ba}
-		next(action)
+		next(ctx, action)
 	})
-	group.Get("/hello/:name", func(c *groupAction) {
+	group.Get("/hello/:name", func(ctx context.Context, c *groupAction) {
 		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
 	})
 
@@ -81,22 +84,22 @@ func TestGroup(t *testing.T) {
 func TestGroup_Subgroup(t *testing.T) {
 	router := New(DefaultActionFactory)
 
-	router.Use(func(a Action, next MiddlewareFunc) {
-		a.ResponseWriter().Header().Add("x-from-middleware", "wow")
-		next(a)
+	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
+		rw.Header().Add("x-from-middleware", "wow")
+		next(ctx, r, rw)
 	})
 
-	group := NewGroup(router, func(ba *BaseAction, next func(*groupAction)) {
+	group := NewGroup(router, func(ctx context.Context, ba *BaseAction, next func(context.Context, *groupAction)) {
 		action := &groupAction{BaseAction: ba, value: 1}
-		next(action)
+		next(ctx, action)
 	})
 
-	subgroup := NewGroup(group, func(ga *groupAction, next func(*groupAction)) {
+	subgroup := NewGroup(group, func(ctx context.Context, ga *groupAction, next func(context.Context, *groupAction)) {
 		ga.value += 1
-		next(ga)
+		next(ctx, ga)
 	})
 
-	subgroup.Get("/hello/:name", func(c *groupAction) {
+	subgroup.Get("/hello/:name", func(ctx context.Context, c *groupAction) {
 		require.Equal(t, 2, c.value)
 		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
 	})
@@ -113,32 +116,32 @@ func TestGroup_Subgroup(t *testing.T) {
 func TestGroup_Subrouter(t *testing.T) {
 	router := New(DefaultActionFactory)
 
-	router.Use(func(a Action, next MiddlewareFunc) {
-		a.ResponseWriter().Header().Add("x-from-middleware", "wow")
-		next(a)
+	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
+		rw.Header().Add("x-from-middleware", "wow")
+		next(ctx, r, rw)
 	})
 
-	group := Subrouter(router, "/foo", func(ba *BaseAction, next func(*groupAction)) {
+	group := Subrouter(router, "/foo", func(ctx context.Context, ba *BaseAction, next func(context.Context, *groupAction)) {
 		action := &groupAction{BaseAction: ba, value: 1}
-		next(action)
+		next(ctx, action)
 	})
 
-	subgroup := Subrouter(group, "/bar", func(ga *groupAction, next func(*groupAction)) {
+	subgroup := Subrouter(group, "/bar", func(ctx context.Context, ga *groupAction, next func(context.Context, *groupAction)) {
 		ga.value += 1
-		next(ga)
+		next(ctx, ga)
 	})
 
-	subgroup.Get("/hello/:name", func(c *groupAction) {
+	subgroup.Get("/hello/:name", func(ctx context.Context, c *groupAction) {
 		require.Equal(t, 2, c.value)
 		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
 	})
 
-	subsubgroup := Subrouter(subgroup, "/baz", func(ga *groupAction, next func(*groupAction)) {
+	subsubgroup := Subrouter(subgroup, "/baz", func(ctx context.Context, ga *groupAction, next func(context.Context, *groupAction)) {
 		ga.value += 1
-		next(ga)
+		next(ctx, ga)
 	})
 
-	subsubgroup.Get("/hello/:name", func(c *groupAction) {
+	subsubgroup.Get("/hello/:name", func(ctx context.Context, c *groupAction) {
 		require.Equal(t, 3, c.value)
 		c.Write([]byte(fmt.Sprintf("hello again %s", c.Params()["name"])))
 	})

@@ -1,6 +1,7 @@
 package httpmethod
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,7 +14,7 @@ func TestRewrite(t *testing.T) {
 	r := medium.New(medium.DefaultActionFactory)
 
 	r.Use(RewriteMiddleware)
-	r.Delete("/", func(ac *medium.BaseAction) {})
+	r.Delete("/", func(ctx context.Context, ac *medium.BaseAction) {})
 
 	req := httptest.NewRequest(http.MethodDelete, "/", nil)
 	res := httptest.NewRecorder()
@@ -27,7 +28,7 @@ func Test_RewritePost(t *testing.T) {
 	r := medium.New(medium.DefaultActionFactory)
 
 	r.Use(RewriteMiddleware)
-	r.Delete("/", func(ac *medium.BaseAction) {})
+	r.Delete("/", func(ctx context.Context, ac *medium.BaseAction) {})
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	res := httptest.NewRecorder()

@@ -1,6 +1,7 @@
 package medium
 
 import (
+	"context"
 	"net/http/httptest"
 	"testing"
 
@@ -93,7 +94,7 @@ func TestRouteMatching(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			req := httptest.NewRequest(tc.reqMethod, tc.reqPath, nil)
-			route := newRoute(tc.routeMethod, tc.routePath, func(a *Action) {})
+			route := newRoute(tc.routeMethod, tc.routePath, func(context.Context, *Action) {})
 
 			got, params := route.IsMatch(req)
 

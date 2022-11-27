@@ -1,7 +1,9 @@
 package rescue
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/blakewilliams/medium"
 	"github.com/blakewilliams/medium/pkg/mlog"
@@ -14,26 +16,26 @@ type Logger interface {
 }
 
 // An ErrorHandler is a function that is called when an error occurs.
-type ErrorHandler func(medium.Action, error)
+type ErrorHandler func(context.Context, *http.Request, http.ResponseWriter, error)
 
 // Middleware accepts an ErrorHandler and returns a medium.Middleware that will
 // rescue errors that happen in middlewares that are called after it.
 func Middleware(handler ErrorHandler) medium.Middleware {
-	return func(action medium.Action, next medium.MiddlewareFunc) {
+	return func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next medium.NextMiddleware) {
 		defer func() {
 			err := recover()
 			if err != nil {
 				switch err.(type) {
 				case error:
-					mlog.Error(action.Context(), "rescued error in middleware", mlog.Fields{"error": err.(error)})
-					handler(action, err.(error))
+					mlog.Error(ctx, "rescued error in middleware", mlog.Fields{"error": err.(error)})
+					handler(ctx, r, rw, err.(error))
 				default:
-					mlog.Error(action.Context(), "rescued non-error in middleware", mlog.Fields{"err": fmt.Sprintf("%v", err)})
-					handler(action, fmt.Errorf("Panic rescued: %v", err))
+					mlog.Error(ctx, "rescued non-error in middleware", mlog.Fields{"err": fmt.Sprintf("%v", err)})
+					handler(ctx, r, rw, fmt.Errorf("Panic rescued: %v", err))
 				}
 			}
 		}()
 
-		next(action)
+		next(ctx, r, rw)
 	}
 }
