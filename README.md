@@ -64,13 +64,14 @@ func (a *AppAction) Render(w io.Writer, templateName string, data interface{}) e
 // This is also where you write code that is typically handled by
 // before/after/around actions in other frameworks, which is code that is meant
 // to run before or after the route handler is called.
-router := medium.New(func(a *medium.BaseAction) AppAction {
+router := medium.New(func(ctx context.Context, rootAction Action, next func(context.Context, *AppAction)) {
   currentUser := findCurrentUser(a.Request)
-  return AppAction{Action: a, currentUser: currentUser}
+  action := AppAction{Action: ba, currentUser: currentUser}
+  next(ctx, action)
 })
 
 // Add a hello route
-router.Get("/hello/:name", func(a AppAction) {
+router.Get("/hello/:name", func(ctx context.Context, a AppAction) {
   a.Render(a, "hello.html", map[string]any{"name": a.Params["name"]})
 })
 
@@ -88,21 +89,25 @@ in that group or nested subgroup/subrouter of the group will render a 404.
 
 ```go
 // Create a new router
-router := medium.New(func(a *medium.BaseAction) AppAction {
+router := medium.New(func(ctx context.Context, a *medium.BaseAction, next func(context.Context, *AppAction)) {
   currentUser := findCurrentUser(a.Request)
-  return AppAction{Action: a, currentUser: currentUser}
+  action := AppAction{Action: a, currentUser: currentUser}
+
+  next(ctx, action)
 })
 
 // Create a group that requires a user to be logged in
-authGroup := router.Group(func(a AppAction, next func(a AppAction)) {
+authGroup := router.Group(func(ctx context.Context, a *AppAction, next func(context.Context, *AppAction)) {
   if a.currentUser != nil {
     a.Render404()
     return
   }
+
+  next(ctx, a)
 })
 
 // Add a route to the group that will redirect if the user is not logged in
-authGroup.Get("/welcome", func(a AppAction) {
+authGroup.Get("/welcome", func(ctx context.Context, a AppAction) {
   a.Render(a, "hello.html", map[string]any{"CurrentUser": a.currentUser})
 })
 ```
@@ -113,9 +118,10 @@ requiring a specific resource to be present and authorized.
 
 ```go
 // Create a new router
-router := medium.New(func(a *medium.BaseAction) AppAction {
+router := medium.New(func(ctx context.Context, a *medium.BaseAction, next(context.Context, *AppAction)) {
   currentUser := findCurrentUser(a.Request)
-  return AppAction{Action: a, currentUser: currentUser}
+  action := AppAction{Action: a, currentUser: currentUser}
+  next(ctx, action)
 })
 
 // Create a type that will hold on to the current team
@@ -126,7 +132,7 @@ type TeamAction struct {
 }
 
 // Create a subrouter that ensures a team is present and authorized
-teamRouter := router.Subrouter("/teams/:teamID", func(a AppAction, next func(a TeamAction)) {
+teamRouter := router.Subrouter("/teams/:teamID", func(ctx context.Context, a AppAction, next func(context.Context, TeamAction)) {
   team := findTeam(a.Params["teamID"])
   if team == nil {
     a.Render404()
@@ -139,23 +145,23 @@ teamRouter := router.Subrouter("/teams/:teamID", func(a AppAction, next func(a T
   }
 
   a.Team = team
-  next(TeamAction{AppAction: a, currentTeam: team})
+  next(ctx, TeamAction{AppAction: a, currentTeam: team})
 })
 
 // Add a route to render the team show page
-teamRouter.Get("/", func(a TeamAction) {
+teamRouter.Get("/", func(ctx context.Context, a TeamAction) {
   a.Render(a, "team.html", map[string]any{"Team": a.currentTeam})
 })
 
 
 // Add a subrouter to the team router that will render the team settings page
-teamSettingsRouter := teamRouter.Subrouter("/settings", func(a TeamAction, next func(a TeamAction)) {
+teamSettingsRouter := teamRouter.Subrouter("/settings", func(ctx context.Context, a TeamAction, next func(context.Context, TeamAction)) {
   if !a.currentTeam.IsAdmin(a.currentUser) {
     a.Render403()
     return
   }
 
-  next(a)
+  next(ctx, a)
 })
 ```
 
@@ -170,18 +176,19 @@ reporting exceptions, etc.
 
 ```go
 // Create a new router
-router := medium.New(func(a *medium.BaseAction) AppAction {
+router := medium.New(func(ctx context.Context, a *medium.BaseAction, next func(context.Context, *AppAction)) {
   currentUser := findCurrentUser(a.Request)
-  return AppAction{Action: a, currentUser: currentUser}
+  action := AppAction{Action: a, currentUser: currentUser}
+
+  next(ctx, action)
 })
 
-// Add a middleware that logs the request
-// Note: Middleware accept medium.Action, not your custom action type.
-router.Use(func(a medium.Action, next func(a medium.Action)) {
+// Add a middleware that logs the request. Middleware work on raw HTTP types, not medium types.
+router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next medium.NextMiddleware) {
   now := time.Now()
   log.Printf("Started: %s %s", a.Request.Method, a.Request.URL.Path)
 
-  next(a)
+  next(ctx, a)
 
   log.Printf("Served: %s %s in %s", a.Request.Method, a.Request.URL.Path, time.Since(now))
 })
