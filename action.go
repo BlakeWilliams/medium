@@ -6,11 +6,17 @@ import (
 	"net/url"
 )
 
-func DefaultActionFactory(ctx context.Context, baseAction Action, next func(context.Context, *BaseAction)) {
-	action := baseAction.(*BaseAction)
+func DefaultActionFactory(ctx context.Context, m Migrator[Action, *BaseAction]) {
+	action := m.Action().(*BaseAction)
 
-	next(ctx, action)
+	m.Next(ctx, action)
 }
+
+// baseAction Action, next func(context.Context, *BaseAction)) {
+// 	action := baseAction.(*BaseAction)
+//
+// 	next(ctx, action)
+// }
 
 // Creates a new BaseAction which implements the Action interface. It is used as
 // the base for most applications and should be extended via embedding to allow
@@ -57,11 +63,6 @@ type Action interface {
 	// Write implements the io.Writer interface and writes the given content to
 	// the response writer.
 	Write(content []byte) (int, error)
-	// WithContext should modify the underlying *http.Request context,
-	// allowing medium and non-medium context consumers to utilize context.
-	WithContext(context.Context) context.Context
-	// Context is a convenience function for returning Request().Context()
-	Context() context.Context
 }
 
 type BaseAction struct {

@@ -28,15 +28,33 @@ type HandlerFunc[T any] func(context.Context, T)
 type Router[T Action] struct {
 	routes        []*Route[T]
 	middleware    []Middleware
-	actionFactory func(context.Context, Action, func(context.Context, T))
+	actionFactory func(context.Context, Migrator[Action, T])
 	// Called when no route matches the request. Useful for rendering 404 pages.
 	missingRoute HandlerFunc[T]
 
 	groups []dispatchable[T]
 }
 
+type Migrator[T Action, N Action] interface {
+	Action() T
+	Next(context.Context, N)
+}
+
+type routerMigrator[T Action, N Action] struct {
+	action T
+	next   func(context.Context, N)
+}
+
+func (rm *routerMigrator[T, N]) Action() T {
+	return rm.action
+}
+
+func (rm *routerMigrator[T, N]) Next(ctx context.Context, newAction N) {
+	rm.next(ctx, newAction)
+}
+
 // Creates a new Router with the given ContextFactory.
-func New[T Action](actionFactory func(context.Context, Action, func(context.Context, T))) *Router[T] {
+func New[T Action](actionFactory func(context.Context, Migrator[Action, T])) *Router[T] {
 	return &Router[T]{
 		actionFactory: actionFactory,
 		routes:        make([]*Route[T], 0),
@@ -52,22 +70,31 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		var mediumHandler func(ctx context.Context, a Action)
 		if ok {
 			mediumHandler = func(ctx context.Context, action Action) {
-				router.actionFactory(ctx, action, func(ctx context.Context, action T) {
-					routeHandler(ctx, action)
-				})
+				rm := &routerMigrator[Action, T]{
+					action: action,
+					next:   routeHandler,
+				}
+
+				router.actionFactory(ctx, rm)
 			}
 		}
 
 		if !ok {
 			mediumHandler = func(ctx context.Context, action Action) {
-				router.actionFactory(ctx, action, func(ctx context.Context, action T) {
-					if router.missingRoute != nil {
-						router.missingRoute(ctx, action)
-					} else {
+				rm := &routerMigrator[Action, T]{
+					action: action,
+				}
+
+				if router.missingRoute != nil {
+					rm.next = router.missingRoute
+				} else {
+					rm.next = func(ctx context.Context, a T) {
 						action.ResponseWriter().WriteHeader(http.StatusNotFound)
 						_, _ = action.Write([]byte("404 not found"))
 					}
-				})
+				}
+
+				router.actionFactory(ctx, rm)
 			}
 		}
 
@@ -91,18 +118,24 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 func (router *Router[T]) dispatch(ctx context.Context, r *http.Request, rw http.ResponseWriter) (bool, map[string]string, func(context.Context, T)) {
 	if route, params := router.routeFor(r); route != nil {
 		return true, params, func(ctx context.Context, action T) {
-			router.actionFactory(ctx, action, func(ctx context.Context, action T) {
-				route.handler(ctx, action)
-			})
+			rm := &routerMigrator[Action, T]{
+				action: action,
+				next:   route.handler,
+			}
+
+			router.actionFactory(ctx, rm)
 		}
 	}
 
 	for _, group := range router.groups {
 		if ok, params, handler := group.dispatch(ctx, r, rw); ok {
 			return true, params, func(ctx context.Context, action T) {
-				router.actionFactory(ctx, action, func(ctx context.Context, action T) {
-					handler(ctx, action)
-				})
+				rm := &routerMigrator[Action, T]{
+					action: action,
+					next:   handler,
+				}
+
+				router.actionFactory(ctx, rm)
 			}
 		}
 	}

@@ -32,9 +32,9 @@ func TestGroup_Routes(t *testing.T) {
 		next(ctx, r, rw)
 	})
 
-	group := NewGroup(router, func(ctx context.Context, ba *BaseAction, next func(context.Context, *groupAction)) {
-		action := &groupAction{BaseAction: ba}
-		next(ctx, action)
+	group := NewGroup(router, func(ctx context.Context, m Migrator[*BaseAction, *groupAction]) {
+		action := &groupAction{BaseAction: m.Action()}
+		m.Next(ctx, action)
 	})
 
 	for name, tc := range testCases {
@@ -64,9 +64,9 @@ func TestGroup(t *testing.T) {
 		next(ctx, r, rw)
 	})
 
-	group := NewGroup(router, func(ctx context.Context, ba *BaseAction, next func(context.Context, *groupAction)) {
-		action := &groupAction{BaseAction: ba}
-		next(ctx, action)
+	group := NewGroup(router, func(ctx context.Context, m Migrator[*BaseAction, *groupAction]) {
+		action := &groupAction{BaseAction: m.Action()}
+		m.Next(ctx, action)
 	})
 	group.Get("/hello/:name", func(ctx context.Context, c *groupAction) {
 		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
@@ -89,14 +89,14 @@ func TestGroup_Subgroup(t *testing.T) {
 		next(ctx, r, rw)
 	})
 
-	group := NewGroup(router, func(ctx context.Context, ba *BaseAction, next func(context.Context, *groupAction)) {
-		action := &groupAction{BaseAction: ba, value: 1}
-		next(ctx, action)
+	group := NewGroup(router, func(ctx context.Context, m Migrator[*BaseAction, *groupAction]) {
+		action := &groupAction{BaseAction: m.Action(), value: 1}
+		m.Next(ctx, action)
 	})
 
-	subgroup := NewGroup(group, func(ctx context.Context, ga *groupAction, next func(context.Context, *groupAction)) {
-		ga.value += 1
-		next(ctx, ga)
+	subgroup := NewGroup(group, func(ctx context.Context, m Migrator[*groupAction, *groupAction]) {
+		m.Action().value += 1
+		m.Next(ctx, m.Action())
 	})
 
 	subgroup.Get("/hello/:name", func(ctx context.Context, c *groupAction) {
@@ -121,14 +121,14 @@ func TestGroup_Subrouter(t *testing.T) {
 		next(ctx, r, rw)
 	})
 
-	group := Subrouter(router, "/foo", func(ctx context.Context, ba *BaseAction, next func(context.Context, *groupAction)) {
-		action := &groupAction{BaseAction: ba, value: 1}
-		next(ctx, action)
+	group := Subrouter(router, "/foo", func(ctx context.Context, m Migrator[*BaseAction, *groupAction]) {
+		action := &groupAction{BaseAction: m.Action(), value: 1}
+		m.Next(ctx, action)
 	})
 
-	subgroup := Subrouter(group, "/bar", func(ctx context.Context, ga *groupAction, next func(context.Context, *groupAction)) {
-		ga.value += 1
-		next(ctx, ga)
+	subgroup := Subrouter(group, "/bar", func(ctx context.Context, m Migrator[*groupAction, *groupAction]) {
+		m.Action().value += 1
+		m.Next(ctx, m.Action())
 	})
 
 	subgroup.Get("/hello/:name", func(ctx context.Context, c *groupAction) {
@@ -136,9 +136,9 @@ func TestGroup_Subrouter(t *testing.T) {
 		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
 	})
 
-	subsubgroup := Subrouter(subgroup, "/baz", func(ctx context.Context, ga *groupAction, next func(context.Context, *groupAction)) {
-		ga.value += 1
-		next(ctx, ga)
+	subsubgroup := Subrouter(subgroup, "/baz", func(ctx context.Context, m Migrator[*groupAction, *groupAction]) {
+		m.Action().value += 1
+		m.Next(ctx, m.Action())
 	})
 
 	subsubgroup.Get("/hello/:name", func(ctx context.Context, c *groupAction) {

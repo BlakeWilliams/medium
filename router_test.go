@@ -113,10 +113,10 @@ type MyAction struct {
 }
 
 func TestCustomActionType(t *testing.T) {
-	router := New(func(ctx context.Context, a Action, next func(context.Context, *MyAction)) {
-		action := &MyAction{Action: a, Data: 1}
+	router := New(func(ctx context.Context, m Migrator[Action, *MyAction]) {
+		action := &MyAction{Action: m.Action(), Data: 1}
 
-		next(ctx, action)
+		m.Next(ctx, action)
 	})
 
 	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
