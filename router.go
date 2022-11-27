@@ -6,7 +6,7 @@ import (
 )
 
 type dispatchable[T Action] interface {
-	dispatch(ctx context.Context, rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(context.Context, T))
+	dispatch(ctx context.Context, r *http.Request, rw http.ResponseWriter) (bool, map[string]string, func(context.Context, T))
 }
 
 // Represents the next middleware to be called in the middleware stack.
@@ -47,7 +47,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var handler NextMiddleware
 
 	handler = func(ctx context.Context, r *http.Request, rw http.ResponseWriter) {
-		ok, params, routeHandler := router.dispatch(ctx, rw, r)
+		ok, params, routeHandler := router.dispatch(ctx, r, rw)
 
 		var mediumHandler func(ctx context.Context, a Action)
 		if ok {
@@ -88,7 +88,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 }
 
-func (router *Router[T]) dispatch(ctx context.Context, rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(context.Context, T)) {
+func (router *Router[T]) dispatch(ctx context.Context, r *http.Request, rw http.ResponseWriter) (bool, map[string]string, func(context.Context, T)) {
 	if route, params := router.routeFor(r); route != nil {
 		return true, params, func(ctx context.Context, action T) {
 			router.actionFactory(ctx, action, func(ctx context.Context, action T) {
@@ -98,7 +98,7 @@ func (router *Router[T]) dispatch(ctx context.Context, rw http.ResponseWriter, r
 	}
 
 	for _, group := range router.groups {
-		if ok, params, handler := group.dispatch(ctx, rw, r); ok {
+		if ok, params, handler := group.dispatch(ctx, r, rw); ok {
 			return true, params, func(ctx context.Context, action T) {
 				router.actionFactory(ctx, action, func(ctx context.Context, action T) {
 					handler(ctx, action)
