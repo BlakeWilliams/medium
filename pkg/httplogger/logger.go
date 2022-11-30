@@ -46,7 +46,7 @@ func Middleware(ctx context.Context, r *http.Request, rw http.ResponseWriter, ne
 }
 
 // Sets the given logger on context so it's available to future middleware
-func ProviderMiddleware(logger mlog.Logger) medium.Middleware {
+func ProviderMiddleware(logger mlog.Logger) medium.MiddlewareFunc {
 	return func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next medium.NextMiddleware) {
 		ctx = mlog.Inject(ctx, logger)
 		next(ctx, r, rw)

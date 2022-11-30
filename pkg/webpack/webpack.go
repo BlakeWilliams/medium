@@ -109,7 +109,7 @@ func (w *Webpack) Stop() error {
 // directory.
 //
 // This is not intended for production use, just for development.
-func (w *Webpack) Middleware() medium.Middleware {
+func (w *Webpack) Middleware() medium.MiddlewareFunc {
 	return func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next medium.NextMiddleware) {
 		start := time.Now()
 

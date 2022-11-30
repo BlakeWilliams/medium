@@ -17,9 +17,25 @@ type registerable[T Action] interface {
 // Around/Before/After callbacks and Action type (T)
 type Group[P Action, T Action] struct {
 	routes        []*Route[T]
-	actionFactory func(context.Context, P, func(context.Context, T))
+	actionFactory func(context.Context, *GroupContext[P, T])
 	subgroups     []dispatchable[T]
 	routePrefix   string
+}
+
+// GroupContext represents the current action and exposts a Next function that
+// allows you to create routes for a new Action type composed from the old
+// action.
+type GroupContext[PrevActionT Action, NextActionT Action] struct {
+	action PrevActionT
+	next   func(context.Context, NextActionT)
+}
+
+func (rc *GroupContext[PrevActionT, NextActionT]) Action() PrevActionT {
+	return rc.action
+}
+
+func (rc *GroupContext[PrevActionT, NextActionT]) Next(ctx context.Context, nextAction NextActionT) {
+	rc.next(ctx, nextAction)
 }
 
 // Subrouter creates a new grouping of routes that will be routed to in addition
@@ -42,7 +58,7 @@ type Group[P Action, T Action] struct {
 //	|-Group[LoggedInAction, Admin]
 //	  |
 //	  |_ Group[Admin, SuperAdmin]
-func Subrouter[P Action, T Action, Y registerable[P]](parent Y, prefix string, factory func(context.Context, P, func(context.Context, T))) *Group[P, T] {
+func Subrouter[P Action, T Action, Y registerable[P]](parent Y, prefix string, factory func(context.Context, *GroupContext[P, T])) *Group[P, T] {
 	group := NewGroup(parent, factory)
 	group.routePrefix = parent.prefix() + prefix
 
@@ -54,7 +70,7 @@ func Subrouter[P Action, T Action, Y registerable[P]](parent Y, prefix string, f
 //
 // A factory function is passed to the NewGroup, so that it can reference
 // fields from the parent action type.
-func NewGroup[P Action, T Action, Y registerable[P]](parent Y, factory func(context.Context, P, func(context.Context, T))) *Group[P, T] {
+func NewGroup[P Action, T Action, Y registerable[P]](parent Y, factory func(context.Context, *GroupContext[P, T])) *Group[P, T] {
 	group := &Group[P, T]{routes: make([]*Route[T], 0), actionFactory: factory}
 	group.routePrefix = parent.prefix()
 	parent.register(group)
@@ -104,21 +120,20 @@ func (g *Group[P, T]) Delete(path string, handler HandlerFunc[T]) {
 }
 
 // Implements Dispatchable so groups can be registered on routers
-func (g *Group[P, T]) dispatch(ctx context.Context, r *http.Request, rw http.ResponseWriter) (bool, map[string]string, func(context.Context, P)) {
+func (g *Group[P, T]) dispatch(ctx context.Context, r *http.Request) (bool, map[string]string, func(context.Context, P)) {
 	if route, params := g.routeFor(r); route != nil {
 		return true, params, func(ctx context.Context, action P) {
-			g.actionFactory(ctx, action, func(ctx context.Context, action T) {
-				route.handler(ctx, action)
-			})
+			groupContext := &GroupContext[P, T]{action: action, next: route.handler}
+			g.actionFactory(ctx, groupContext)
 		}
 	}
 
 	for _, group := range g.subgroups {
-		if ok, params, handler := group.dispatch(ctx, r, rw); ok {
+		if ok, params, handler := group.dispatch(ctx, r); ok {
+
 			return true, params, func(ctx context.Context, action P) {
-				g.actionFactory(ctx, action, func(ctx context.Context, action T) {
-					handler(ctx, action)
-				})
+				groupContext := &GroupContext[P, T]{action: action, next: handler}
+				g.actionFactory(ctx, groupContext)
 			}
 		}
 	}

@@ -6,37 +6,39 @@ import (
 )
 
 type dispatchable[T Action] interface {
-	dispatch(ctx context.Context, r *http.Request, rw http.ResponseWriter) (bool, map[string]string, func(context.Context, T))
+	dispatch(ctx context.Context, r *http.Request) (bool, map[string]string, func(context.Context, T))
 }
-
-// Represents the next middleware to be called in the middleware stack.
-type NextMiddleware func(context.Context, *http.Request, http.ResponseWriter)
-
-// Middleware is a function that is called before the action is executed.
-// See Router.Use for more information.
-// type Middleware func(c Action, next HandlerFunc[Action])
-type Middleware func(context.Context, *http.Request, http.ResponseWriter, NextMiddleware)
 
 // A function that handles a request.
 type HandlerFunc[T any] func(context.Context, T)
-
-// Convenience type for middleware handlers
-// type MiddlewareFunc = HandlerFunc[Action]
 
 // Router is a collection of Routes and is used to dispatch requests to the
 // correct Route handler.
 type Router[T Action] struct {
 	routes        []*Route[T]
-	middleware    []Middleware
-	actionFactory func(context.Context, Action, func(context.Context, T))
+	middleware    []MiddlewareFunc
+	actionFactory func(context.Context, *RouterContext[T])
 	// Called when no route matches the request. Useful for rendering 404 pages.
 	missingRoute HandlerFunc[T]
 
 	groups []dispatchable[T]
 }
 
+type RouterContext[T Action] struct {
+	action Action
+	next   func(context.Context, T)
+}
+
+func (rc *RouterContext[T]) Action() Action {
+	return rc.action
+}
+
+func (rc *RouterContext[T]) Next(ctx context.Context, nextAction T) {
+	rc.next(ctx, nextAction)
+}
+
 // Creates a new Router with the given ContextFactory.
-func New[T Action](actionFactory func(context.Context, Action, func(context.Context, T))) *Router[T] {
+func New[T Action](actionFactory func(context.Context, *RouterContext[T])) *Router[T] {
 	return &Router[T]{
 		actionFactory: actionFactory,
 		routes:        make([]*Route[T], 0),
@@ -44,30 +46,33 @@ func New[T Action](actionFactory func(context.Context, Action, func(context.Cont
 }
 
 func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	var handler NextMiddleware
+	var handler MiddlewareFunc
 
-	handler = func(ctx context.Context, r *http.Request, rw http.ResponseWriter) {
-		ok, params, routeHandler := router.dispatch(ctx, r, rw)
+	handler = func(ctx context.Context, mctx *MiddlewareContext) {
+		ok, params, routeHandler := router.dispatch(ctx, r)
 
 		var mediumHandler func(ctx context.Context, a Action)
+
 		if ok {
 			mediumHandler = func(ctx context.Context, action Action) {
-				router.actionFactory(ctx, action, func(ctx context.Context, action T) {
-					routeHandler(ctx, action)
-				})
+				routerContext := &RouterContext[T]{action: action, next: routeHandler}
+				router.actionFactory(ctx, routerContext)
 			}
 		}
 
 		if !ok {
 			mediumHandler = func(ctx context.Context, action Action) {
-				router.actionFactory(ctx, action, func(ctx context.Context, action T) {
+				next := func(ctx context.Context, action T) {
 					if router.missingRoute != nil {
 						router.missingRoute(ctx, action)
 					} else {
 						action.ResponseWriter().WriteHeader(http.StatusNotFound)
 						_, _ = action.Write([]byte("404 not found"))
 					}
-				})
+				}
+
+				routerContext := &RouterContext[T]{action: action, next: next}
+				router.actionFactory(ctx, routerContext)
 			}
 		}
 
@@ -75,35 +80,29 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		mediumHandler(ctx, action)
 	}
 
-	for i := len(router.middleware) - 1; i >= 0; i-- {
-		middleware := router.middleware[i]
-		nextHandler := handler
-
-		handler = func(ctx context.Context, r *http.Request, rw http.ResponseWriter) {
-			middleware(ctx, r, rw, nextHandler)
-		}
+	middlewares := &MiddlewareContext{
+		Request:        r,
+		ResponseWriter: rw,
+		middlewares:    append(router.middleware, handler),
 	}
 
-	handler(context.Background(), r, rw)
-
+	middlewares.Run()
 }
 
-func (router *Router[T]) dispatch(ctx context.Context, r *http.Request, rw http.ResponseWriter) (bool, map[string]string, func(context.Context, T)) {
+func (router *Router[T]) dispatch(ctx context.Context, r *http.Request) (bool, map[string]string, func(context.Context, T)) {
 	if route, params := router.routeFor(r); route != nil {
-		return true, params, func(ctx context.Context, action T) {
-			router.actionFactory(ctx, action, func(ctx context.Context, action T) {
-				route.handler(ctx, action)
-			})
-		}
+
+		return true, params, route.handler
+		// return true, params, func(ctx context.Context, action T) {
+		// 	router.actionFactory(ctx, action, func(ctx context.Context, action T) {
+		// 		route.handler(ctx, action)
+		// 	})
+		// }
 	}
 
 	for _, group := range router.groups {
-		if ok, params, handler := group.dispatch(ctx, r, rw); ok {
-			return true, params, func(ctx context.Context, action T) {
-				router.actionFactory(ctx, action, func(ctx context.Context, action T) {
-					handler(ctx, action)
-				})
-			}
+		if ok, params, handler := group.dispatch(ctx, r); ok {
+			return true, params, handler
 		}
 	}
 
@@ -165,7 +164,7 @@ func (r *Router[T]) Missing(handler HandlerFunc[T]) {
 //
 // Middleware is called in the order that they are added. Middleware must call
 // next in order to continue the request, otherwise the request is halted.
-func (r *Router[T]) Use(middleware Middleware) {
+func (r *Router[T]) Use(middleware MiddlewareFunc) {
 	r.middleware = append(r.middleware, middleware)
 }
 

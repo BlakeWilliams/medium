@@ -20,7 +20,7 @@ type ErrorHandler func(context.Context, *http.Request, http.ResponseWriter, erro
 
 // Middleware accepts an ErrorHandler and returns a medium.Middleware that will
 // rescue errors that happen in middlewares that are called after it.
-func Middleware(handler ErrorHandler) medium.Middleware {
+func Middleware(handler ErrorHandler) medium.MiddlewareFunc {
 	return func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next medium.NextMiddleware) {
 		defer func() {
 			err := recover()

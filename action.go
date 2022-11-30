@@ -6,10 +6,10 @@ import (
 	"net/url"
 )
 
-func DefaultActionFactory(ctx context.Context, baseAction Action, next func(context.Context, *BaseAction)) {
-	action := baseAction.(*BaseAction)
+func DefaultActionFactory(ctx context.Context, rctx *RouterContext[*BaseAction]) {
+	action := rctx.Action().(*BaseAction)
 
-	next(ctx, action)
+	rctx.Next(ctx, action)
 }
 
 // Creates a new BaseAction which implements the Action interface. It is used as

@@ -28,13 +28,13 @@ func TestGroup_Routes(t *testing.T) {
 	}
 	router := New(DefaultActionFactory)
 
-	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
-		next(ctx, r, rw)
+	router.Use(func(ctx context.Context, mctx *MiddlewareContext) {
+		mctx.Next(ctx)
 	})
 
-	group := NewGroup(router, func(ctx context.Context, ba *BaseAction, next func(context.Context, *groupAction)) {
-		action := &groupAction{BaseAction: ba}
-		next(ctx, action)
+	group := NewGroup(router, func(ctx context.Context, gctx *GroupContext[*BaseAction, *groupAction]) {
+		action := &groupAction{BaseAction: gctx.Action()}
+		gctx.Next(ctx, action)
 	})
 
 	for name, tc := range testCases {
@@ -59,9 +59,9 @@ func TestGroup_Routes(t *testing.T) {
 func TestGroup(t *testing.T) {
 	router := New(DefaultActionFactory)
 
-	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
-		rw.Header().Add("x-from-middleware", "wow")
-		next(ctx, r, rw)
+	router.Use(func(ctx context.Context, mctx *MiddlewareContext) {
+		mctx.ResponseWriter.Header().Add("x-from-middleware", "wow")
+		mctx.Next(ctx)
 	})
 
 	group := NewGroup(router, func(ctx context.Context, ba *BaseAction, next func(context.Context, *groupAction)) {
@@ -84,9 +84,9 @@ func TestGroup(t *testing.T) {
 func TestGroup_Subgroup(t *testing.T) {
 	router := New(DefaultActionFactory)
 
-	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
-		rw.Header().Add("x-from-middleware", "wow")
-		next(ctx, r, rw)
+	router.Use(func(ctx context.Context, mctx *MiddlewareContext) {
+		mctx.ResponseWriter.Header().Add("x-from-middleware", "wow")
+		mctx.Next(ctx)
 	})
 
 	group := NewGroup(router, func(ctx context.Context, ba *BaseAction, next func(context.Context, *groupAction)) {
@@ -116,9 +116,9 @@ func TestGroup_Subgroup(t *testing.T) {
 func TestGroup_Subrouter(t *testing.T) {
 	router := New(DefaultActionFactory)
 
-	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
-		rw.Header().Add("x-from-middleware", "wow")
-		next(ctx, r, rw)
+	router.Use(func(ctx context.Context, mctx *MiddlewareContext) {
+		mctx.ResponseWriter.Header().Add("x-from-middleware", "wow")
+		mctx.Next(ctx)
 	})
 
 	group := Subrouter(router, "/foo", func(ctx context.Context, ba *BaseAction, next func(context.Context, *groupAction)) {
