@@ -64,10 +64,10 @@ func (a *AppAction) Render(w io.Writer, templateName string, data interface{}) e
 // This is also where you write code that is typically handled by
 // before/after/around actions in other frameworks, which is code that is meant
 // to run before or after the route handler is called.
-router := medium.New(func(ctx context.Context, rootAction Action, next func(context.Context, *AppAction)) {
+router := medium.New(func(ctx context.Context, rootAction Action, next func(*AppAction)) {
   currentUser := findCurrentUser(a.Request)
   action := AppAction{Action: ba, currentUser: currentUser}
-  next(ctx, action)
+  next(action)
 })
 
 // Add a hello route
@@ -89,25 +89,25 @@ in that group or nested subgroup/subrouter of the group will render a 404.
 
 ```go
 // Create a new router
-router := medium.New(func(ctx context.Context, a *medium.BaseAction, next func(context.Context, *AppAction)) {
+router := medium.New(func(ctx context.Context, a *medium.BaseAction, next func(*AppAction)) {
   currentUser := findCurrentUser(a.Request)
   action := AppAction{Action: a, currentUser: currentUser}
 
-  next(ctx, action)
+  next(action)
 })
 
 // Create a group that requires a user to be logged in
-authGroup := router.Group(func(ctx context.Context, a *AppAction, next func(context.Context, *AppAction)) {
+authGroup := router.Group(func(a *AppAction, next func(*AppAction)) {
   if a.currentUser != nil {
     a.Render404()
     return
   }
 
-  next(ctx, a)
+  next(a)
 })
 
 // Add a route to the group that will redirect if the user is not logged in
-authGroup.Get("/welcome", func(ctx context.Context, a AppAction) {
+authGroup.Get("/welcome", func(a AppAction) {
   a.Render(a, "hello.html", map[string]any{"CurrentUser": a.currentUser})
 })
 ```
@@ -118,10 +118,10 @@ requiring a specific resource to be present and authorized.
 
 ```go
 // Create a new router
-router := medium.New(func(ctx context.Context, a *medium.BaseAction, next(context.Context, *AppAction)) {
+router := medium.New(func(ctx context.Context, a *medium.BaseAction, next(*AppAction)) {
   currentUser := findCurrentUser(a.Request)
   action := AppAction{Action: a, currentUser: currentUser}
-  next(ctx, action)
+  next(action)
 })
 
 // Create a type that will hold on to the current team
@@ -132,7 +132,7 @@ type TeamAction struct {
 }
 
 // Create a subrouter that ensures a team is present and authorized
-teamRouter := router.Subrouter("/teams/:teamID", func(ctx context.Context, a AppAction, next func(context.Context, TeamAction)) {
+teamRouter := router.Subrouter("/teams/:teamID", func(a AppAction, next func(TeamAction)) {
   team := findTeam(a.Params["teamID"])
   if team == nil {
     a.Render404()
@@ -145,23 +145,23 @@ teamRouter := router.Subrouter("/teams/:teamID", func(ctx context.Context, a App
   }
 
   a.Team = team
-  next(ctx, TeamAction{AppAction: a, currentTeam: team})
+  next(TeamAction{AppAction: a, currentTeam: team})
 })
 
 // Add a route to render the team show page
-teamRouter.Get("/", func(ctx context.Context, a TeamAction) {
+teamRouter.Get("/", func(a TeamAction) {
   a.Render(a, "team.html", map[string]any{"Team": a.currentTeam})
 })
 
 
 // Add a subrouter to the team router that will render the team settings page
-teamSettingsRouter := teamRouter.Subrouter("/settings", func(ctx context.Context, a TeamAction, next func(context.Context, TeamAction)) {
+teamSettingsRouter := teamRouter.Subrouter("/settings", func(a TeamAction, next func(TeamAction)) {
   if !a.currentTeam.IsAdmin(a.currentUser) {
     a.Render403()
     return
   }
 
-  next(ctx, a)
+  next(a)
 })
 ```
 
@@ -176,11 +176,11 @@ reporting exceptions, etc.
 
 ```go
 // Create a new router
-router := medium.New(func(ctx context.Context, a *medium.BaseAction, next func(context.Context, *AppAction)) {
+router := medium.New(func(ctx context.Context, a *medium.BaseAction, next func(*AppAction)) {
   currentUser := findCurrentUser(a.Request)
   action := AppAction{Action: a, currentUser: currentUser}
 
-  next(ctx, action)
+  next(action)
 })
 
 // Add a middleware that logs the request. Middleware work on raw HTTP types, not medium types.
