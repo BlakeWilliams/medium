@@ -11,7 +11,7 @@ import (
 )
 
 func TestSentViewer_Index(t *testing.T) {
-	r := medium.New(medium.DefaultActionFactory)
+	r := medium.New(medium.DefaultActionCreator)
 	renderer := view.New(os.DirFS("/"))
 	renderer.RegisterStaticTemplate("index", "welcome!")
 
@@ -44,7 +44,7 @@ func TestSentViewer_Index(t *testing.T) {
 }
 
 func TestSentViewer_Show(t *testing.T) {
-	r := medium.New(medium.DefaultActionFactory)
+	r := medium.New(medium.DefaultActionCreator)
 	renderer := view.New(os.DirFS("/"))
 	renderer.RegisterStaticTemplate("index", "welcome!")
 
@@ -69,7 +69,7 @@ func TestSentViewer_Show(t *testing.T) {
 }
 
 func TestSentViewer_Body(t *testing.T) {
-	r := medium.New(medium.DefaultActionFactory)
+	r := medium.New(medium.DefaultActionCreator)
 	renderer := view.New(os.DirFS("/"))
 	renderer.RegisterStaticTemplate("index", "welcome!")
 

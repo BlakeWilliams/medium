@@ -6,10 +6,10 @@ import (
 	"net/url"
 )
 
-func DefaultActionFactory(ctx context.Context, baseAction Action, next func(context.Context, *BaseAction)) {
+func DefaultActionCreator(ctx context.Context, baseAction Action, next func(*BaseAction)) {
 	action := baseAction.(*BaseAction)
 
-	next(ctx, action)
+	next(action)
 }
 
 // Creates a new BaseAction which implements the Action interface. It is used as

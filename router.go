@@ -6,7 +6,7 @@ import (
 )
 
 type dispatchable[T Action] interface {
-	dispatch(ctx context.Context, r *http.Request, rw http.ResponseWriter) (bool, map[string]string, func(context.Context, T))
+	dispatch(r *http.Request, rw http.ResponseWriter) (bool, map[string]string, func(T))
 }
 
 // Represents the next middleware to be called in the middleware stack.
@@ -18,7 +18,7 @@ type NextMiddleware func(context.Context, *http.Request, http.ResponseWriter)
 type Middleware func(context.Context, *http.Request, http.ResponseWriter, NextMiddleware)
 
 // A function that handles a request.
-type HandlerFunc[T any] func(context.Context, T)
+type HandlerFunc[T any] func(T)
 
 // Convenience type for middleware handlers
 // type MiddlewareFunc = HandlerFunc[Action]
@@ -28,17 +28,17 @@ type HandlerFunc[T any] func(context.Context, T)
 type Router[T Action] struct {
 	routes        []*Route[T]
 	middleware    []Middleware
-	actionFactory func(context.Context, Action, func(context.Context, T))
+	actionCreator func(context.Context, Action, func(T))
 	// Called when no route matches the request. Useful for rendering 404 pages.
 	missingRoute HandlerFunc[T]
 
 	groups []dispatchable[T]
 }
 
-// Creates a new Router with the given ContextFactory.
-func New[T Action](actionFactory func(context.Context, Action, func(context.Context, T))) *Router[T] {
+// Creates a new Router with the given action creator used to create the application's root type.
+func New[T Action](actionCreator func(context.Context, Action, func(T))) *Router[T] {
 	return &Router[T]{
-		actionFactory: actionFactory,
+		actionCreator: actionCreator,
 		routes:        make([]*Route[T], 0),
 	}
 }
@@ -52,7 +52,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		var mediumHandler func(ctx context.Context, a Action)
 		if ok {
 			mediumHandler = func(ctx context.Context, action Action) {
-				router.actionFactory(ctx, action, func(ctx context.Context, action T) {
+				router.actionCreator(ctx, action, func(action T) {
 					routeHandler(ctx, action)
 				})
 			}
@@ -60,9 +60,9 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		if !ok {
 			mediumHandler = func(ctx context.Context, action Action) {
-				router.actionFactory(ctx, action, func(ctx context.Context, action T) {
+				router.actionCreator(ctx, action, func(action T) {
 					if router.missingRoute != nil {
-						router.missingRoute(ctx, action)
+						router.missingRoute(action)
 					} else {
 						action.ResponseWriter().WriteHeader(http.StatusNotFound)
 						_, _ = action.Write([]byte("404 not found"))
@@ -91,17 +91,17 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 func (router *Router[T]) dispatch(ctx context.Context, r *http.Request, rw http.ResponseWriter) (bool, map[string]string, func(context.Context, T)) {
 	if route, params := router.routeFor(r); route != nil {
 		return true, params, func(ctx context.Context, action T) {
-			router.actionFactory(ctx, action, func(ctx context.Context, action T) {
-				route.handler(ctx, action)
+			router.actionCreator(ctx, action, func(action T) {
+				route.handler(action)
 			})
 		}
 	}
 
 	for _, group := range router.groups {
-		if ok, params, handler := group.dispatch(ctx, r, rw); ok {
+		if ok, params, handler := group.dispatch(r, rw); ok {
 			return true, params, func(ctx context.Context, action T) {
-				router.actionFactory(ctx, action, func(ctx context.Context, action T) {
-					handler(ctx, action)
+				router.actionCreator(ctx, action, func(action T) {
+					handler(action)
 				})
 			}
 		}
@@ -161,7 +161,7 @@ func (r *Router[T]) Missing(handler HandlerFunc[T]) {
 // middleware being treated as a low-level API.
 //
 // If you need access to the application specific action, you can use the
-// routerFactory function passed to New or NewGroup.
+// actionCreator function passed to New or NewGroup.
 //
 // Middleware is called in the order that they are added. Middleware must call
 // next in order to continue the request, otherwise the request is halted.

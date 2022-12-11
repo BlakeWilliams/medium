@@ -12,14 +12,14 @@ import (
 )
 
 func TestHappyPath(t *testing.T) {
-	router := New(DefaultActionFactory)
+	router := New(DefaultActionCreator)
 
 	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
 		rw.Header().Add("x-from-middleware", "wow")
 		next(ctx, r, rw)
 	})
 
-	router.Get("/hello/:name", func(ctx context.Context, c *BaseAction) {
+	router.Get("/hello/:name", func(c *BaseAction) {
 		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
 	})
 
@@ -42,17 +42,19 @@ func TestGroup_RouteMethods(t *testing.T) {
 		"Patch":  {method: http.MethodPatch},
 		"Delete": {method: http.MethodDelete},
 	}
-	router := New(DefaultActionFactory)
+	router := New(DefaultActionCreator)
 
 	for name, tc := range testCases {
 		path := reflect.ValueOf("/")
-		handler := reflect.ValueOf(func(ctx context.Context, c *BaseAction) {
+		var handler HandlerFunc[*BaseAction] = func(c *BaseAction) {
 			c.ResponseWriter().WriteHeader(http.StatusOK)
 			c.Write([]byte("hello"))
-		})
+		}
+
+		handlerValue := reflect.ValueOf(handler)
 
 		t.Run(name, func(t *testing.T) {
-			reflect.ValueOf(router).MethodByName(name).Call([]reflect.Value{path, handler})
+			reflect.ValueOf(router).MethodByName(name).Call([]reflect.Value{path, handlerValue})
 
 			req := httptest.NewRequest(tc.method, "/", nil)
 			rw := httptest.NewRecorder()
@@ -64,9 +66,9 @@ func TestGroup_RouteMethods(t *testing.T) {
 }
 
 func TestRouter_Post(t *testing.T) {
-	router := New(DefaultActionFactory)
+	router := New(DefaultActionCreator)
 
-	router.Post("/hello/:name", func(ctx context.Context, c *BaseAction) {
+	router.Post("/hello/:name", func(c *BaseAction) {
 		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
 	})
 
@@ -79,7 +81,7 @@ func TestRouter_Post(t *testing.T) {
 }
 
 func TestRouter_MissingRoute_NoHandler(t *testing.T) {
-	router := New(DefaultActionFactory)
+	router := New(DefaultActionCreator)
 
 	req := httptest.NewRequest(http.MethodGet, "/where/do/i/go", nil)
 	rw := httptest.NewRecorder()
@@ -91,9 +93,9 @@ func TestRouter_MissingRoute_NoHandler(t *testing.T) {
 }
 
 func TestRouter_MissingRoute_WithHandler(t *testing.T) {
-	router := New(DefaultActionFactory)
+	router := New(DefaultActionCreator)
 
-	router.Missing(func(ctx context.Context, c *BaseAction) {
+	router.Missing(func(c *BaseAction) {
 		c.ResponseWriter().WriteHeader(http.StatusNotFound)
 		c.Write([]byte("Sorry, can't find that page."))
 	})
@@ -113,10 +115,10 @@ type MyAction struct {
 }
 
 func TestCustomActionType(t *testing.T) {
-	router := New(func(ctx context.Context, a Action, next func(context.Context, *MyAction)) {
+	router := New(func(ctx context.Context, a Action, next func(*MyAction)) {
 		action := &MyAction{Action: a, Data: 1}
 
-		next(ctx, action)
+		next(action)
 	})
 
 	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
@@ -124,7 +126,7 @@ func TestCustomActionType(t *testing.T) {
 		next(ctx, r, rw)
 	})
 
-	router.Get("/hello/:name", func(ctx context.Context, c *MyAction) {
+	router.Get("/hello/:name", func(c *MyAction) {
 		c.Write([]byte(fmt.Sprintf("hello %s, data %d", c.Params()["name"], c.Data)))
 	})
 

@@ -1,7 +1,6 @@
 package mail
 
 import (
-	"context"
 	"embed"
 	_ "embed"
 	"strconv"
@@ -30,13 +29,13 @@ func RegisterSentMailViewer[T medium.Action](medium *medium.Router[T], mailer *M
 	renderer.RegisterLayout("views/layout.html")
 	renderer.DefaultLayout = "views/layout.html"
 
-	medium.Get("/_mailer", func(ctx context.Context, c T) {
+	medium.Get("/_mailer", func(c T) {
 		renderer.Render(c, "views/index.html", map[string]interface{}{
 			"SentMail": mailer.SentMail,
 		})
 	})
 
-	medium.Get("/_mailer/sent/:index", func(ctx context.Context, c T) {
+	medium.Get("/_mailer/sent/:index", func(c T) {
 		strIndex := c.Params()["index"]
 		index, err := strconv.Atoi(strIndex)
 
@@ -54,7 +53,7 @@ func RegisterSentMailViewer[T medium.Action](medium *medium.Router[T], mailer *M
 		}
 	})
 
-	medium.Get("/_mailer/sent/:index/body", func(ctx context.Context, c T) {
+	medium.Get("/_mailer/sent/:index/body", func(c T) {
 		strIndex := c.Params()["index"]
 		index, err := strconv.Atoi(strIndex)
 

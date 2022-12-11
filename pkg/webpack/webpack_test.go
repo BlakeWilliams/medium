@@ -23,7 +23,7 @@ func TestWebpack(t *testing.T) {
 	err := webpack.Start(context.TODO(), output)
 	require.NoError(t, err)
 
-	r := medium.New(medium.DefaultActionFactory)
+	r := medium.New(medium.DefaultActionCreator)
 	r.Use(webpack.Middleware())
 
 	testCases := map[string]struct {

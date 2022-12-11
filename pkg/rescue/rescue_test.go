@@ -11,14 +11,14 @@ import (
 )
 
 func TestRescue(t *testing.T) {
-	r := medium.New(medium.DefaultActionFactory)
+	r := medium.New(medium.DefaultActionCreator)
 
 	handler := func(ctx context.Context, r *http.Request, rw http.ResponseWriter, err error) {
 		rw.Write([]byte("oh no!"))
 	}
 
 	r.Use(Middleware(handler))
-	r.Get("/", func(ctx context.Context, ac *medium.BaseAction) {
+	r.Get("/", func(ac *medium.BaseAction) {
 		panic("oh no!")
 	})
 

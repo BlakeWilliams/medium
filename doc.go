@@ -11,7 +11,7 @@ Example:
 	}
 
 	func Run() {
-		// Router that defines a context factory that returns a new MyAction for each request.
+		// Router that defines a context creator that returns a new MyAction for each request.
 		router := New(func(ac *MyAction) {
 			ac.requestId = randomString()
 		}))

@@ -59,7 +59,7 @@ func (a *AppAction) Render(w io.Writer, templateName string, data interface{}) e
 }
 
 // Create a new router. Routers, groups, and subrouters accept an "action
-// factory" function that allows you to convert the previous action type into your custom action type.
+// creator" function that allows you to convert the previous action type into your custom action type.
 //
 // This is also where you write code that is typically handled by
 // before/after/around actions in other frameworks, which is code that is meant
