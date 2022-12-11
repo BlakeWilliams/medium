@@ -24,7 +24,6 @@ func NewAction(rw http.ResponseWriter, r *http.Request, params map[string]string
 		request:        r,
 		params:         params,
 		status:         200,
-		context:        r.Context(),
 	}
 
 	newRw := &statusForwarder{
@@ -57,11 +56,6 @@ type Action interface {
 	// Write implements the io.Writer interface and writes the given content to
 	// the response writer.
 	Write(content []byte) (int, error)
-	// WithContext should modify the underlying *http.Request context,
-	// allowing medium and non-medium context consumers to utilize context.
-	WithContext(context.Context) context.Context
-	// Context is a convenience function for returning Request().Context()
-	Context() context.Context
 }
 
 type BaseAction struct {
@@ -69,7 +63,6 @@ type BaseAction struct {
 	request        *http.Request
 	params         map[string]string
 	status         int
-	context        context.Context
 }
 
 func (ba *BaseAction) Write(content []byte) (int, error) {
@@ -112,15 +105,6 @@ func (ba *BaseAction) SetResponseWriter(rw http.ResponseWriter) {
 
 func (ba *BaseAction) SetRequest(r *http.Request) {
 	ba.request = r
-}
-
-func (ba *BaseAction) Context() context.Context {
-	return ba.request.Context()
-}
-
-func (ba *BaseAction) WithContext(ctx context.Context) context.Context {
-	ba.request = ba.request.WithContext(ctx)
-	return ba.request.Context()
 }
 
 var _ Action = &BaseAction{}
