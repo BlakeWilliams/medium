@@ -33,7 +33,7 @@ type Mail struct {
 
 // Represents a type that can be used to send emails to mail servers.
 type Deliverer interface {
-	SendMail(from string, to []string, body []byte) error
+	SendMail(from string, to []string, subject string, body []byte) error
 }
 
 // Creates a new mailer, accepting a renderer which is used to render HTML
@@ -93,7 +93,7 @@ func (m *Mail) Send(deliverer Deliverer) error {
 	msg.WriteString("\r\n")
 	msg.WriteString(m.Body)
 
-	err := deliverer.SendMail(m.From, m.To, []byte(m.Body))
+	err := deliverer.SendMail(m.From, m.To, m.Subject, []byte(m.Body))
 
 	if err != nil {
 		return fmt.Errorf("failed to send email: %s", err)

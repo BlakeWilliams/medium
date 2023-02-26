@@ -12,7 +12,7 @@ type FakeDeliverer struct {
 	deliveries int
 }
 
-func (f *FakeDeliverer) SendMail(addr string, addrs []string, msg []byte) error {
+func (f *FakeDeliverer) SendMail(addr string, addrs []string, subject string, msg []byte) error {
 	f.deliveries++
 	return nil
 }
