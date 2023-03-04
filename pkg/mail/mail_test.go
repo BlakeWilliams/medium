@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"context"
 	"embed"
 	"testing"
 
@@ -12,7 +13,7 @@ type FakeDeliverer struct {
 	deliveries int
 }
 
-func (f *FakeDeliverer) SendMail(addr string, addrs []string, subject string, msg []byte) error {
+func (f *FakeDeliverer) SendMail(ctx context.Context, msg *Message) error {
 	f.deliveries++
 	return nil
 }
@@ -36,7 +37,7 @@ func TestMail_SentMail(t *testing.T) {
 	err = msg.Template("welcome.html", map[string]interface{}{"Name": "Walter Skinner"})
 	require.NoError(t, err)
 
-	err = mailer.Send(msg)
+	err = mailer.Send(context.Background(), msg)
 
 	require.NoError(t, err)
 
@@ -67,7 +68,7 @@ func TestMail_SentMail_DevModeFalse(t *testing.T) {
 	err = msg.Template("welcome.html", map[string]interface{}{"Name": "Walter Skinner"})
 	require.NoError(t, err)
 
-	err = mailer.Send(msg)
+	err = mailer.Send(context.Background(), msg)
 	require.NoError(t, err)
 
 	require.Equal(t, 0, len(mailer.SentMail))

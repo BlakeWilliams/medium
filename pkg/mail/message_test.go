@@ -28,8 +28,8 @@ func TestMessage_Multipart(t *testing.T) {
 	err = msg.Multipart([]string{"welcome.html", "welcome.txt"}, map[string]any{"Name": "Fox Mulder"})
 	require.NoError(t, err)
 
-	require.Regexp(t, boundaryContentRegex, msg.contentType)
-	boundary := boundaryContentRegex.FindStringSubmatch(msg.contentType)[1]
+	require.Regexp(t, boundaryContentRegex, msg.ContentType)
+	boundary := boundaryContentRegex.FindStringSubmatch(msg.ContentType)[1]
 
 	r := multipart.NewReader(strings.NewReader(msg.Body), boundary)
 	html, err := r.NextPart()
@@ -65,6 +65,6 @@ func TestMessage_Template_PlainText(t *testing.T) {
 	err = msg.Template("welcome.txt", map[string]any{"Name": "Fox Mulder"})
 	require.NoError(t, err)
 
-	require.Equal(t, "text/plain", msg.contentType)
+	require.Equal(t, "text/plain", msg.ContentType)
 	require.Equal(t, "Welcome, Fox Mulder!\n", msg.Body)
 }

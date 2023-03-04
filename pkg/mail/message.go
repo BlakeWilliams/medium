@@ -2,12 +2,12 @@ package mail
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"mime"
 	"mime/multipart"
 	"net/textproto"
 	"path"
-	"strings"
 	"time"
 )
 
@@ -18,7 +18,7 @@ type Message struct {
 	Subject     string
 	Body        string
 	SentAt      time.Time
-	contentType string
+	ContentType string
 	mailer      *Mailer
 }
 
@@ -35,7 +35,7 @@ func (m *Message) Template(template string, data map[string]any) error {
 		return err
 	}
 
-	m.contentType = contentType
+	m.ContentType = contentType
 
 	return nil
 }
@@ -76,18 +76,18 @@ func (m *Message) Multipart(templates []string, data map[string]any) error {
 	m.Body = b.String()
 
 	if len(templates) > 1 {
-		m.contentType = fmt.Sprintf("multipart/mixed; boundary=%s", w.Boundary())
+		m.ContentType = fmt.Sprintf("multipart/mixed; boundary=%s", w.Boundary())
 		return nil
 	}
 
 	ext := path.Ext(templates[0])
 	if ext == ".txt" || ext == ".text" {
-		m.contentType = "text/plain"
+		m.ContentType = "text/plain"
 		return nil
 	}
 
-	m.contentType = mime.TypeByExtension(ext)
-	if m.contentType == "" {
+	m.ContentType = mime.TypeByExtension(ext)
+	if m.ContentType == "" {
 		return fmt.Errorf("could not determine mimetype for template %s", templates[0])
 	}
 
@@ -95,17 +95,8 @@ func (m *Message) Multipart(templates []string, data map[string]any) error {
 }
 
 // Sends an email using the passed in deliverer.
-func (m *Message) Send(deliverer Deliverer) error {
-	msg := new(bytes.Buffer)
-	msg.WriteString("From: " + m.From + "\r\n")
-	msg.WriteString("To: " + strings.Join(m.To, ",") + "\r\n")
-	msg.WriteString("Subject: " + m.Subject + "\r\n")
-	msg.WriteString("Content-Type: text/html\r\n")
-
-	msg.WriteString("\r\n")
-	msg.WriteString(m.Body)
-
-	err := deliverer.SendMail(m.From, m.To, m.Subject, []byte(m.Body))
+func (m *Message) Send(ctx context.Context, deliverer Deliverer) error {
+	err := deliverer.SendMail(ctx, m)
 
 	if err != nil {
 		return fmt.Errorf("failed to send email: %s", err)

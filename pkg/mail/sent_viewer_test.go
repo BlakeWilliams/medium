@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"context"
 	"net/http/httptest"
 	"os"
 	"testing"
@@ -30,7 +31,7 @@ func TestSentViewer_Index(t *testing.T) {
 	err := msg.Template("index.html", nil)
 	require.NoError(t, err)
 
-	err = mailer.Send(msg)
+	err = mailer.Send(context.Background(), msg)
 	require.NoError(t, err)
 
 	req = httptest.NewRequest("GET", "/_mailer", nil)
@@ -60,7 +61,7 @@ func TestSentViewer_Show(t *testing.T) {
 	err := msg.Template("index.html", nil)
 	require.NoError(t, err)
 
-	err = mailer.Send(msg)
+	err = mailer.Send(context.Background(), msg)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/_mailer/sent/0", nil)
@@ -87,7 +88,7 @@ func TestSentViewer_Body(t *testing.T) {
 	err := msg.Template("index.html", nil)
 	require.NoError(t, err)
 
-	err = mailer.Send(msg)
+	err = mailer.Send(context.Background(), msg)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/_mailer/sent/0/body", nil)

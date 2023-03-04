@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"context"
 	"time"
 
 	"github.com/blakewilliams/bat"
@@ -21,7 +22,7 @@ type Mailer struct {
 
 // Represents a type that can be used to send emails to mail servers.
 type Deliverer interface {
-	SendMail(from string, to []string, subject string, body []byte) error
+	SendMail(context.Context, *Message) error
 }
 
 // Creates a new mailer, accepting a renderer which is used to render HTML
@@ -47,11 +48,11 @@ func (m *Mailer) NewMessage(subject string, to ...string) *Message {
 }
 
 // Sends an email using the mailer's host and auth.
-func (m *Mailer) Send(msg *Message) error {
+func (m *Mailer) Send(ctx context.Context, msg *Message) error {
 	if m.DevMode {
 		m.SentMail = append(m.SentMail, *msg)
 	} else {
-		err := msg.Send(m.deliverer)
+		err := msg.Send(ctx, m.deliverer)
 
 		if err != nil {
 			return err
