@@ -1,6 +1,6 @@
-{{if not .SentMail}}No mail has been sent {{end}}
+{{if SentMail == nil}}No mail has been sent {{end}}
 
-{{range $i, $m := .SentMail}}
+{{range $i, $m in SentMail}}
   <a href="/_mailer/sent/{{$i}}">
     To: {{$m.To}}<br/>
     From: {{$m.From}}<br/>

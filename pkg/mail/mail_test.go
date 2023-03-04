@@ -4,7 +4,7 @@ import (
 	"embed"
 	"testing"
 
-	"github.com/blakewilliams/medium/pkg/view"
+	"github.com/blakewilliams/bat"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,8 +21,8 @@ func (f *FakeDeliverer) SendMail(addr string, addrs []string, subject string, ms
 var fixtureViewFS embed.FS
 
 func TestMail_SentMail(t *testing.T) {
-	renderer := view.New(fixtureViewFS)
-	err := renderer.RegisterTemplate("fixtures/welcome.html")
+	renderer := bat.NewEngine(bat.HTMLEscape)
+	err := renderer.AutoRegister(fixtureViewFS, "fixtures", ".html")
 	require.NoError(t, err)
 
 	fakeDeliverer := &FakeDeliverer{}
@@ -32,7 +32,12 @@ func TestMail_SentMail(t *testing.T) {
 
 	require.NoError(t, err)
 
-	err = mailer.Send("fixtures/welcome.html", "foo@bar.net", "Hello!", map[string]interface{}{"Name": "Walter Skinner"})
+	msg := mailer.NewMessage("Hello!", "foo@bar.net")
+	err = msg.Template("welcome.html", map[string]interface{}{"Name": "Walter Skinner"})
+	require.NoError(t, err)
+
+	err = mailer.Send(msg)
+
 	require.NoError(t, err)
 
 	require.Equal(t, 1, len(mailer.SentMail))
@@ -48,8 +53,8 @@ func TestMail_SentMail(t *testing.T) {
 }
 
 func TestMail_SentMail_DevModeFalse(t *testing.T) {
-	renderer := view.New(fixtureViewFS)
-	err := renderer.RegisterTemplate("fixtures/welcome.html")
+	renderer := bat.NewEngine(bat.HTMLEscape)
+	err := renderer.AutoRegister(fixtureViewFS, "fixtures", ".html")
 	require.NoError(t, err)
 
 	fakeDeliverer := &FakeDeliverer{}
@@ -58,7 +63,11 @@ func TestMail_SentMail_DevModeFalse(t *testing.T) {
 	mailer.From = "noreply@bar.net"
 	require.NoError(t, err)
 
-	err = mailer.Send("fixtures/welcome.html", "foo@bar.net", "Hello!", map[string]interface{}{"Name": "Walter Skinner"})
+	msg := mailer.NewMessage("Hello!", "foo@bar.net")
+	err = msg.Template("welcome.html", map[string]interface{}{"Name": "Walter Skinner"})
+	require.NoError(t, err)
+
+	err = mailer.Send(msg)
 	require.NoError(t, err)
 
 	require.Equal(t, 0, len(mailer.SentMail))

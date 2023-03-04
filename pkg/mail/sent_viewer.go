@@ -1,12 +1,13 @@
 package mail
 
 import (
+	"bytes"
 	"embed"
 	_ "embed"
 	"strconv"
 
+	"github.com/blakewilliams/bat"
 	"github.com/blakewilliams/medium"
-	"github.com/blakewilliams/medium/pkg/view"
 )
 
 //go:embed views/index.html
@@ -22,17 +23,22 @@ var layout string
 var viewFS embed.FS
 
 func RegisterSentMailViewer[T medium.Action](medium *medium.Router[T], mailer *Mailer) {
-	renderer := view.New(viewFS)
-	renderer.RegisterTemplate("views/index.html")
-	renderer.RegisterTemplate("views/show.html")
-
-	renderer.RegisterLayout("views/layout.html")
-	renderer.DefaultLayout = "views/layout.html"
+	renderer := bat.NewEngine(bat.HTMLEscape)
+	renderer.AutoRegister(viewFS, "", ".html")
 
 	medium.Get("/_mailer", func(c T) {
-		renderer.Render(c, "views/index.html", map[string]interface{}{
+		data := map[string]interface{}{
 			"SentMail": mailer.SentMail,
-		})
+		}
+
+		childContent := new(bytes.Buffer)
+		err := renderer.Render(childContent, "views/index.html", data)
+		if err != nil {
+			panic(err)
+		}
+		data["ChildContent"] = bat.Safe(childContent.String())
+
+		renderer.Render(c, "views/layout.html", data)
 	})
 
 	medium.Get("/_mailer/sent/:index", func(c T) {
@@ -43,14 +49,19 @@ func RegisterSentMailViewer[T medium.Action](medium *medium.Router[T], mailer *M
 			panic(err)
 		}
 
-		err = renderer.Render(c, "views/show.html", map[string]interface{}{
+		data := map[string]interface{}{
 			"Mail":  mailer.SentMail[index],
 			"Index": index,
-		})
+		}
 
+		childContent := new(bytes.Buffer)
+		err = renderer.Render(childContent, "views/show.html", data)
 		if err != nil {
 			panic(err)
 		}
+		data["ChildContent"] = bat.Safe(childContent.String())
+
+		renderer.Render(c, "views/layout.html", data)
 	})
 
 	medium.Get("/_mailer/sent/:index/body", func(c T) {

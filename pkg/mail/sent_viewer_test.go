@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/blakewilliams/bat"
 	"github.com/blakewilliams/medium"
 	"github.com/blakewilliams/medium/pkg/view"
 	"github.com/stretchr/testify/require"
@@ -12,10 +13,7 @@ import (
 
 func TestSentViewer_Index(t *testing.T) {
 	r := medium.New(medium.DefaultActionCreator)
-	renderer := view.New(os.DirFS("/"))
-	renderer.RegisterStaticTemplate("index", "welcome!")
-
-	mailer := New(&FakeDeliverer{}, renderer)
+	mailer := New(&FakeDeliverer{}, sentRenderer())
 	mailer.DevMode = true
 	mailer.From = "noreply@bar.net"
 
@@ -28,7 +26,11 @@ func TestSentViewer_Index(t *testing.T) {
 	require.Equal(t, 200, res.Code)
 	require.Contains(t, res.Body.String(), "No mail has been sent")
 
-	err := mailer.Send("index", "foo@bar.net", "Welcome!", map[string]any{})
+	msg := mailer.NewMessage("Welcome!", "foo@bar.net")
+	err := msg.Template("index.html", nil)
+	require.NoError(t, err)
+
+	err = mailer.Send(msg)
 	require.NoError(t, err)
 
 	req = httptest.NewRequest("GET", "/_mailer", nil)
@@ -48,13 +50,18 @@ func TestSentViewer_Show(t *testing.T) {
 	renderer := view.New(os.DirFS("/"))
 	renderer.RegisterStaticTemplate("index", "welcome!")
 
-	mailer := New(&FakeDeliverer{}, renderer)
+	mailer := New(&FakeDeliverer{}, sentRenderer())
 	mailer.DevMode = true
 	mailer.From = "noreply@bar.net"
 
 	RegisterSentMailViewer(r, mailer)
 
-	mailer.Send("index", "foo@bar.net", "Welcome!", map[string]any{})
+	msg := mailer.NewMessage("Welcome!", "foo@bar.net")
+	err := msg.Template("index.html", nil)
+	require.NoError(t, err)
+
+	err = mailer.Send(msg)
+	require.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/_mailer/sent/0", nil)
 	res := httptest.NewRecorder()
@@ -70,16 +77,18 @@ func TestSentViewer_Show(t *testing.T) {
 
 func TestSentViewer_Body(t *testing.T) {
 	r := medium.New(medium.DefaultActionCreator)
-	renderer := view.New(os.DirFS("/"))
-	renderer.RegisterStaticTemplate("index", "welcome!")
-
-	mailer := New(&FakeDeliverer{}, renderer)
+	mailer := New(&FakeDeliverer{}, sentRenderer())
 	mailer.DevMode = true
 	mailer.From = "noreply@bar.net"
 
 	RegisterSentMailViewer(r, mailer)
 
-	mailer.Send("index", "foo@bar.net", "Welcome!", map[string]any{})
+	msg := mailer.NewMessage("Welcome!", "foo@bar.net")
+	err := msg.Template("index.html", nil)
+	require.NoError(t, err)
+
+	err = mailer.Send(msg)
+	require.NoError(t, err)
 
 	req := httptest.NewRequest("GET", "/_mailer/sent/0/body", nil)
 	res := httptest.NewRecorder()
@@ -88,4 +97,11 @@ func TestSentViewer_Body(t *testing.T) {
 	require.Equal(t, res.Body.String(), "welcome!")
 
 	r.ServeHTTP(res, req)
+}
+
+func sentRenderer() *bat.Engine {
+	engine := bat.NewEngine(bat.HTMLEscape)
+	engine.Register("index.html", "welcome!")
+
+	return engine
 }
