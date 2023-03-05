@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var boundaryContentRegex = regexp.MustCompile(`multipart/mixed; boundary="(.+)"`)
+var boundaryContentRegex = regexp.MustCompile(`multipart/alternative; boundary="(.+)"`)
 
 func TestMessage_Multipart(t *testing.T) {
 	renderer := bat.NewEngine(bat.HTMLEscape)
