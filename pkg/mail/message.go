@@ -76,7 +76,7 @@ func (m *Message) Multipart(templates []string, data map[string]any) error {
 	m.Body = b.String()
 
 	if len(templates) > 1 {
-		m.ContentType = fmt.Sprintf("multipart/mixed; boundary=%s", w.Boundary())
+		m.ContentType = fmt.Sprintf("multipart/mixed; boundary=\"%s\"; charset=UTF-8", w.Boundary())
 		return nil
 	}
 
