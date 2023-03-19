@@ -91,18 +91,14 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 func (router *Router[T]) dispatch(ctx context.Context, r *http.Request, rw http.ResponseWriter) (bool, map[string]string, func(context.Context, T)) {
 	if route, params := router.routeFor(r); route != nil {
 		return true, params, func(ctx context.Context, action T) {
-			router.actionCreator(ctx, action, func(action T) {
-				route.handler(action)
-			})
+			route.handler(action)
 		}
 	}
 
 	for _, group := range router.groups {
 		if ok, params, handler := group.dispatch(r, rw); ok {
 			return true, params, func(ctx context.Context, action T) {
-				router.actionCreator(ctx, action, func(action T) {
-					handler(action)
-				})
+				handler(action)
 			}
 		}
 	}
