@@ -64,14 +64,19 @@ func RegisterSentMailViewer[T medium.Action](medium *medium.Router[T], mailer *M
 		renderer.Render(c, "views/layout.html", data)
 	})
 
-	medium.Get("/_mailer/sent/:index/body", func(c T) {
+	medium.Get("/_mailer/sent/:index/content/:contentIndex/body", func(c T) {
 		strIndex := c.Params()["index"]
 		index, err := strconv.Atoi(strIndex)
-
 		if err != nil {
 			panic(err)
 		}
 
-		c.Write([]byte(mailer.SentMail[index].Body))
+		strContentIndex := c.Params()["contentIndex"]
+		contentIndex, err := strconv.Atoi(strContentIndex)
+		if err != nil {
+			panic(err)
+		}
+
+		c.Write([]byte(mailer.SentMail[index].Contents[contentIndex].Body))
 	})
 }

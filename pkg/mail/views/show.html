@@ -1,6 +1,8 @@
-To: {{Mail.To}}<br/>
-From: {{Mail.From}}<br/>
-Subject: {{Mail.Subject}}<br/>
+To: {{Mail.To}}<br />
+From: {{Mail.From}}<br />
+Subject: {{Mail.Subject}}<br />
 
-Body:<br/>
-<iframe src="/_mailer/sent/{{Index}}/body"></iframe>
+{{ range $i, $m in Mail.Contents }}
+<h3>Content Type: {{ $m.ContentType }} </h3>
+<iframe src="/_mailer/sent/{{Index}}/content/{{ $i }}/body"></iframe>
+{{ end }}

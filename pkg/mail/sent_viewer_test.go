@@ -68,7 +68,7 @@ func TestSentViewer_Show(t *testing.T) {
 	res := httptest.NewRecorder()
 	r.ServeHTTP(res, req)
 
-	require.Contains(t, res.Body.String(), `<iframe src="/_mailer/sent/0/body">`)
+	require.Contains(t, res.Body.String(), `<iframe src="/_mailer/sent/0/content/0/body">`)
 	require.Contains(t, res.Body.String(), "foo@bar.net")
 	require.Contains(t, res.Body.String(), "Welcome!")
 	require.Contains(t, res.Body.String(), "noreply@bar.net")
@@ -91,7 +91,7 @@ func TestSentViewer_Body(t *testing.T) {
 	err = mailer.Send(context.Background(), msg)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest("GET", "/_mailer/sent/0/body", nil)
+	req := httptest.NewRequest("GET", "/_mailer/sent/0/content/0/body", nil)
 	res := httptest.NewRecorder()
 	r.ServeHTTP(res, req)
 
