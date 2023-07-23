@@ -8,8 +8,9 @@ These packages are likely to change often and without warning given the (current
 
 ## Packages
 
-- **rescue** - Basic rescue middleware for router.
-- **httplogger** - Basic logger middleware for router.
+- **middleware/rescue** - Basic rescue middleware for router.
+- **middleware/httpmethod** - Rewrites the HTTP method based on the \_method parameter. This is used to allow browsers to make PUT, PATCH, and DELETE requests.
+- **middleware/httplogger** - Basic logger middleware for router.
 - ~**view** - Wraps the [`html/template`](https://golang.org/html/template/) package to provide a slightly more friendly and ergonimic interface for web application usage.~ Use [bat](https://github.com/blakewilliams/bat) instead.
 - **session** - Struct based, cookie backed session management using HMAC signatures to validate session contents.
 - **mail** - Provides a basic mailer package that utilizes `template` for templating. Additionally provides a basic interface that can be used with `router` to see sent emails in development.
