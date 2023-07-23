@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/blakewilliams/medium"
-	"github.com/blakewilliams/medium/pkg/mlog"
+	"github.com/blakewilliams/medium/mlog"
 )
 
 // Webpack is used to start and stop a webpack dev server instance. It can be

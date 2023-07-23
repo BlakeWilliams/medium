@@ -8,7 +8,7 @@ import (
 
 	"github.com/blakewilliams/bat"
 	"github.com/blakewilliams/medium"
-	"github.com/blakewilliams/medium/pkg/view"
+	"github.com/blakewilliams/medium/view"
 	"github.com/stretchr/testify/require"
 )
 

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/blakewilliams/medium"
-	"github.com/blakewilliams/medium/pkg/mlog"
+	"github.com/blakewilliams/medium/mlog"
 )
 
 // Determines if status is available and loggable

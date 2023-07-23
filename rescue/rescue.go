@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/blakewilliams/medium"
-	"github.com/blakewilliams/medium/pkg/mlog"
+	"github.com/blakewilliams/medium/mlog"
 )
 
 // Logger interface that is required by the middleware.
