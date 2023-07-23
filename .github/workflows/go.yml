@@ -20,7 +20,7 @@ jobs:
       with:
         node-version: current
     - name: Setup webpack
-      run: (cd pkg/webpack/test_env && npm install)
+      run: (cd webpack/test_env && npm install)
     - name: Build
       run: go build -v ./...
     - name: Test
