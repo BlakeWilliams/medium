@@ -18,12 +18,13 @@ func TestStoreCookie(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session := New[MyData]("session", verifier)
-		session.FromRequest(r)
+		err := session.FromRequest(r)
+		require.NoError(t, err)
 
 		session.Data.UserID = 500
 		session.Data.Name = "Fox Mulder"
 
-		err := session.Write(w)
+		err = session.Write(w)
 		require.NoError(t, err)
 	})
 
@@ -45,12 +46,13 @@ func TestStoreCookie_WriteIfChanged(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session := New[MyData]("session", verifier)
-		session.FromRequest(r)
+		err := session.FromRequest(r)
+		require.NoError(t, err)
 
 		session.Data.UserID = 500
 		session.Data.Name = "Fox Mulder"
 
-		err := session.WriteIfChanged(w)
+		err = session.WriteIfChanged(w)
 		require.NoError(t, err)
 	})
 

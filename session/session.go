@@ -2,6 +2,7 @@ package session
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -33,7 +34,7 @@ func New[T any](name string, verifier Verifier) *Store[T] {
 func (s *Store[T]) FromRequest(r *http.Request) error {
 	cookie, err := r.Cookie(s.name)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, http.ErrNoCookie) {
 		return fmt.Errorf("Could not create session from request: %w", err)
 	}
 
@@ -43,6 +44,10 @@ func (s *Store[T]) FromRequest(r *http.Request) error {
 // FromCookie attempts to decode the data from the passed in Cookie and verifies
 // the data hasn't been tampered with.
 func (s *Store[T]) FromCookie(cookie *http.Cookie) error {
+	if cookie == nil {
+		return nil
+	}
+
 	decodedMessage, err := s.verifier.Decode([]byte(cookie.Value))
 
 	if err != nil {
