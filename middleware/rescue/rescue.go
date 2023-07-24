@@ -23,12 +23,12 @@ type ErrorHandler func(context.Context, *http.Request, http.ResponseWriter, erro
 func Middleware(handler ErrorHandler) medium.Middleware {
 	return func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next medium.NextMiddleware) {
 		defer func() {
-			err := recover()
-			if err != nil {
-				switch err.(type) {
+			rec := recover()
+			if rec != nil {
+				switch err := rec.(type) {
 				case error:
-					mlog.Error(ctx, "rescued error in middleware", mlog.Fields{"error": err.(error)})
-					handler(ctx, r, rw, err.(error))
+					mlog.Error(ctx, "rescued error in middleware", mlog.Fields{"error": err})
+					handler(ctx, r, rw, err)
 				default:
 					mlog.Error(ctx, "rescued non-error in middleware", mlog.Fields{"err": fmt.Sprintf("%v", err)})
 					handler(ctx, r, rw, fmt.Errorf("Panic rescued: %v", err))
