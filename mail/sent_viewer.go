@@ -10,21 +10,15 @@ import (
 	"github.com/blakewilliams/medium"
 )
 
-//go:embed views/index.html
-var indexTemplate string
-
-//go:embed views/show.html
-var showTemplate string
-
-//go:embed views/layout.html
-var layout string
-
 //go:embed views/*
 var viewFS embed.FS
 
 func RegisterSentMailViewer[T medium.Action](medium *medium.Router[T], mailer *Mailer) {
 	renderer := bat.NewEngine(bat.HTMLEscape)
-	renderer.AutoRegister(viewFS, "", ".html")
+	err := renderer.AutoRegister(viewFS, "", ".html")
+	if err != nil {
+		panic(err)
+	}
 
 	medium.Get("/_mailer", func(c T) {
 		data := map[string]interface{}{
@@ -38,7 +32,7 @@ func RegisterSentMailViewer[T medium.Action](medium *medium.Router[T], mailer *M
 		}
 		data["ChildContent"] = bat.Safe(childContent.String())
 
-		renderer.Render(c, "views/layout.html", data)
+		_ = renderer.Render(c, "views/layout.html", data)
 	})
 
 	medium.Get("/_mailer/sent/:index", func(c T) {
@@ -61,7 +55,7 @@ func RegisterSentMailViewer[T medium.Action](medium *medium.Router[T], mailer *M
 		}
 		data["ChildContent"] = bat.Safe(childContent.String())
 
-		renderer.Render(c, "views/layout.html", data)
+		_ = renderer.Render(c, "views/layout.html", data)
 	})
 
 	medium.Get("/_mailer/sent/:index/content/:contentIndex/body", func(c T) {

@@ -97,9 +97,11 @@ func (w *Webpack) Stop() error {
 	}
 
 	err := w.cmd.Process.Signal(os.Interrupt)
-	w.cmd.Wait()
+	if err != nil {
+		return err
+	}
 
-	return err
+	return w.cmd.Wait()
 }
 
 // Middleware accepts a logger and returns a middleware that can be used in
@@ -116,7 +118,7 @@ func (w *Webpack) Middleware() medium.Middleware {
 		if strings.HasPrefix(r.URL.Path, "/assets/") {
 			if w.cmd == nil || w.cmd.Process == nil {
 				rw.WriteHeader(http.StatusInternalServerError)
-				rw.Write([]byte("Webpack not running"))
+				_, _ = rw.Write([]byte("Webpack not running"))
 				return
 			}
 
@@ -145,21 +147,19 @@ func (w *Webpack) Middleware() medium.Middleware {
 				cancel()
 			})
 
-			select {
-			case <-ctx.Done():
-				if ctx.Err() == context.DeadlineExceeded {
-					mlog.Error(
-						ctx,
-						"Webpack asset request failed",
-						mlog.Fields{"path": r.URL.Path, "error": ctx.Err()},
-					)
-					rw.WriteHeader(http.StatusInternalServerError)
-					rw.Write([]byte("Serving asset timed out"))
-					return
-				}
-
-				mlog.Debug(ctx, "webpack asset served", mlog.Fields{"path": r.URL.Path, "duration": time.Since(start).String()})
+			<-ctx.Done()
+			if ctx.Err() == context.DeadlineExceeded {
+				mlog.Error(
+					ctx,
+					"Webpack asset request failed",
+					mlog.Fields{"path": r.URL.Path, "error": ctx.Err()},
+				)
+				rw.WriteHeader(http.StatusInternalServerError)
+				_, _ = rw.Write([]byte("Serving asset timed out"))
+				return
 			}
+
+			mlog.Debug(ctx, "webpack asset served", mlog.Fields{"path": r.URL.Path, "duration": time.Since(start).String()})
 		} else {
 			next(ctx, r, rw)
 		}
@@ -202,13 +202,13 @@ func handleAssertRequest(ctx context.Context, rw http.ResponseWriter, port int, 
 
 	if res.StatusCode < 200 || res.StatusCode > 200 {
 		rw.WriteHeader(http.StatusNotFound)
-		rw.Write([]byte("Asset not found"))
+		_, _ = rw.Write([]byte("Asset not found"))
 
 		return nil
 	}
 
 	rw.Header().Set("Content-Type", res.Header.Get("Content-Type"))
-	io.Copy(rw, res.Body)
+	_, _ = io.Copy(rw, res.Body)
 
 	return nil
 }

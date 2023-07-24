@@ -16,7 +16,7 @@ func (fd *Decoder) Decode(target any, src map[string][]string) error {
 	value := reflect.ValueOf(target)
 	kind := value.Kind()
 
-	if value.Kind() == reflect.Pointer {
+	if kind == reflect.Pointer {
 		kind = value.Elem().Kind()
 		value = value.Elem()
 	} else {

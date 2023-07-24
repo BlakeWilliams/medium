@@ -14,7 +14,7 @@ import (
 
 func TestWebpack(t *testing.T) {
 	webpack := New()
-	defer webpack.Stop()
+	defer func() { _ = webpack.Stop() }()
 	webpack.BinPath = "./test_env/node_modules/.bin/webpack"
 	webpack.RootDir = "./test_env"
 	webpack.Port = 9381

@@ -14,7 +14,7 @@ import (
 
 func TestSentViewer_Index(t *testing.T) {
 	r := medium.New(medium.DefaultActionCreator)
-	mailer := New(&FakeDeliverer{}, sentRenderer())
+	mailer := New(&FakeDeliverer{}, sentRenderer(t))
 	mailer.DevMode = true
 	mailer.From = "noreply@bar.net"
 
@@ -49,16 +49,17 @@ func TestSentViewer_Index(t *testing.T) {
 func TestSentViewer_Show(t *testing.T) {
 	r := medium.New(medium.DefaultActionCreator)
 	renderer := view.New(os.DirFS("/"))
-	renderer.RegisterStaticTemplate("index", "welcome!")
+	err := renderer.RegisterStaticTemplate("index", "welcome!")
+	require.NoError(t, err)
 
-	mailer := New(&FakeDeliverer{}, sentRenderer())
+	mailer := New(&FakeDeliverer{}, sentRenderer(t))
 	mailer.DevMode = true
 	mailer.From = "noreply@bar.net"
 
 	RegisterSentMailViewer(r, mailer)
 
 	msg := mailer.NewMessage("Welcome!", "foo@bar.net")
-	err := msg.Template("index.html", nil)
+	err = msg.Template("index.html", nil)
 	require.NoError(t, err)
 
 	err = mailer.Send(context.Background(), msg)
@@ -78,7 +79,7 @@ func TestSentViewer_Show(t *testing.T) {
 
 func TestSentViewer_Body(t *testing.T) {
 	r := medium.New(medium.DefaultActionCreator)
-	mailer := New(&FakeDeliverer{}, sentRenderer())
+	mailer := New(&FakeDeliverer{}, sentRenderer(t))
 	mailer.DevMode = true
 	mailer.From = "noreply@bar.net"
 
@@ -100,9 +101,10 @@ func TestSentViewer_Body(t *testing.T) {
 	r.ServeHTTP(res, req)
 }
 
-func sentRenderer() *bat.Engine {
+func sentRenderer(tb testing.TB) *bat.Engine {
 	engine := bat.NewEngine(bat.HTMLEscape)
-	engine.Register("index.html", "welcome!")
+	err := engine.Register("index.html", "welcome!")
+	require.NoError(tb, err)
 
 	return engine
 }

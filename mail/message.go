@@ -8,7 +8,6 @@ import (
 	"mime/multipart"
 	"net/textproto"
 	"path"
-	"sync"
 	"time"
 )
 
@@ -22,8 +21,6 @@ type Message struct {
 	Body        string
 	ContentType string
 	Contents    []MessageBody
-
-	mu sync.Mutex
 }
 
 type MessageBody struct {
@@ -32,9 +29,6 @@ type MessageBody struct {
 }
 
 func (m *Message) Template(template string, data map[string]any) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	var b bytes.Buffer
 	err := m.mailer.renderer.Render(&b, template, data)
 	if err != nil {
@@ -112,6 +106,9 @@ func (m *Message) generateBody() error {
 		}
 
 		_, err = field.Write([]byte(content.Body))
+		if err != nil {
+			return err
+		}
 	}
 
 	w.Close()

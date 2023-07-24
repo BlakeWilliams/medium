@@ -165,10 +165,10 @@ func (r *Router[T]) Use(middleware Middleware) {
 	r.middleware = append(r.middleware, middleware)
 }
 
+var _ registerable[Action] = (*Router[Action])(nil)
+
 func (r *Router[T]) register(group dispatchable[T]) {
 	r.groups = append(r.groups, group)
 }
 
 func (r *Router[T]) prefix() string { return "" }
-
-var _ registerable[Action] = (*Router[Action])(nil)
