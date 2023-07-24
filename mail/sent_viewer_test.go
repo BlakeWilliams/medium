@@ -3,12 +3,10 @@ package mail
 import (
 	"context"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/blakewilliams/bat"
 	"github.com/blakewilliams/medium"
-	"github.com/blakewilliams/medium/view"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,8 +46,11 @@ func TestSentViewer_Index(t *testing.T) {
 
 func TestSentViewer_Show(t *testing.T) {
 	r := medium.New(medium.DefaultActionCreator)
-	renderer := view.New(os.DirFS("/"))
-	err := renderer.RegisterStaticTemplate("index", "welcome!")
+
+	renderer := bat.NewEngine(bat.HTMLEscape)
+	err := renderer.Register("index", "welcome!")
+	require.NoError(t, err)
+
 	require.NoError(t, err)
 
 	mailer := New(&FakeDeliverer{}, sentRenderer(t))
