@@ -8,6 +8,11 @@ import (
 	"reflect"
 )
 
+type Verifier interface {
+	Encode([]byte) (string, error)
+	Decode(string) ([]byte, error)
+}
+
 // Store is a wrapper around a http.Cookie that provides signed messages,
 // allowing you to securely store data in a cookie.
 //
@@ -48,7 +53,7 @@ func (s *Store[T]) FromCookie(cookie *http.Cookie) error {
 		return nil
 	}
 
-	decodedMessage, err := s.verifier.Decode([]byte(cookie.Value))
+	decodedMessage, err := s.verifier.Decode(cookie.Value)
 
 	if err != nil {
 		return err
@@ -77,7 +82,10 @@ func (s *Store[T]) Write(w http.ResponseWriter) error {
 		return fmt.Errorf("Could not marshal session data: %w", err)
 	}
 
-	encodedData := s.verifier.Encode(jsonValue)
+	encodedData, err := s.verifier.Encode(jsonValue)
+	if err != nil {
+		return fmt.Errorf("could not encode data: %w", err)
+	}
 
 	http.SetCookie(w, &http.Cookie{
 		Name:  s.name,

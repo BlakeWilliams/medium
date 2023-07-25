@@ -13,9 +13,10 @@ func TestVerify(t *testing.T) {
 	message := "Hello, world!"
 
 	verifier := NewVerifier("TheTruthIsOutThere")
-	encodedMessage := verifier.Encode([]byte(message))
+	encodedMessage, err := verifier.Encode([]byte(message))
+	require.NoError(t, err)
 
-	decodedMessage, err := verifier.Decode([]byte(encodedMessage))
+	decodedMessage, err := verifier.Decode(encodedMessage)
 	require.NoError(t, err)
 	require.Equal(t, message, string(decodedMessage))
 }
@@ -23,10 +24,11 @@ func TestVerify_DifferentKeys(t *testing.T) {
 	message := "Hello, world!"
 
 	verifier := NewVerifier("TheTruthIsOutThere")
-	encodedMessage := verifier.Encode([]byte(message))
+	encodedMessage, err := verifier.Encode([]byte(message))
+	require.NoError(t, err)
 
 	otherVerifier := NewVerifier("NewVerifier")
-	decodedMessage, err := otherVerifier.Decode([]byte(encodedMessage))
+	decodedMessage, err := otherVerifier.Decode(encodedMessage)
 	require.Error(t, err)
 	require.Nil(t, decodedMessage)
 }
@@ -35,21 +37,22 @@ func TestVerify_TamperedHash(t *testing.T) {
 	message := "Hello, world!"
 
 	verifier := NewVerifier("TheTruthIsOutThere")
-	encodedMessage := verifier.Encode([]byte(message))
+	encodedMessage, err := verifier.Encode([]byte(message))
+	require.NoError(t, err)
 	parts := strings.SplitN(encodedMessage, "--", 2)
 	hash := parts[1]
 
 	tamperedData := base64.StdEncoding.EncodeToString([]byte("TheTruthIsNOTOutThere"))
 	tamperedMessage := fmt.Sprintf("%s--%s", tamperedData, hash)
 
-	decodedMessage, err := verifier.Decode([]byte(tamperedMessage))
+	decodedMessage, err := verifier.Decode(tamperedMessage)
 	require.Error(t, err)
 	require.Nil(t, decodedMessage)
 }
 
 func TestVerify_InvalidMessage(t *testing.T) {
 	verifier := NewVerifier("TheTruthIsOutThere")
-	decodedMessage, err := verifier.Decode([]byte("breakplz"))
+	decodedMessage, err := verifier.Decode("breakplz")
 
 	require.Error(t, err)
 	require.Nil(t, decodedMessage)
@@ -61,7 +64,7 @@ func TestVerify_InvalidBase64Message(t *testing.T) {
 	tamperedData := base64.StdEncoding.EncodeToString([]byte("TheTruthIsNOTOutThere"))
 	tamperedMessage := fmt.Sprintf("%s--%s", tamperedData, "omgahash")
 
-	decodedMessage, err := verifier.Decode([]byte(tamperedMessage))
+	decodedMessage, err := verifier.Decode(tamperedMessage)
 
 	require.Error(t, err)
 	require.Nil(t, decodedMessage)
