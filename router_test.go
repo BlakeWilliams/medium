@@ -1,7 +1,6 @@
 package medium
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,9 +13,9 @@ import (
 func TestHappyPath(t *testing.T) {
 	router := New(DefaultActionCreator)
 
-	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
+	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		rw.Header().Add("x-from-middleware", "wow")
-		next(ctx, r, rw)
+		next(rw, r)
 	})
 
 	router.Get("/hello/:name", func(c *BaseAction) {
@@ -115,15 +114,15 @@ type MyAction struct {
 }
 
 func TestCustomActionType(t *testing.T) {
-	router := New(func(ctx context.Context, a Action, next func(*MyAction)) {
+	router := New(func(a Action, next func(*MyAction)) {
 		action := &MyAction{Action: a, Data: 1}
 
 		next(action)
 	})
 
-	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
+	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		rw.Header().Add("x-from-middleware", "wow")
-		next(ctx, r, rw)
+		next(rw, r)
 	})
 
 	router.Get("/hello/:name", func(c *MyAction) {

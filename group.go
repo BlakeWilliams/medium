@@ -103,7 +103,7 @@ func (g *Group[P, T]) Delete(path string, handler HandlerFunc[T]) {
 }
 
 // Implements Dispatchable so groups can be registered on routers
-func (g *Group[P, T]) dispatch(r *http.Request, rw http.ResponseWriter) (bool, map[string]string, func(P)) {
+func (g *Group[P, T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(P)) {
 	if route, params := g.routeFor(r); route != nil {
 		return true, params, func(action P) {
 			g.actionCreator(action, func(action T) {
@@ -113,7 +113,7 @@ func (g *Group[P, T]) dispatch(r *http.Request, rw http.ResponseWriter) (bool, m
 	}
 
 	for _, group := range g.subgroups {
-		if ok, params, handler := group.dispatch(r, rw); ok {
+		if ok, params, handler := group.dispatch(rw, r); ok {
 			return true, params, func(action P) {
 				g.actionCreator(action, func(action T) {
 					handler(action)

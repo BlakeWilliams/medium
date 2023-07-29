@@ -112,7 +112,7 @@ func (w *Webpack) Stop() error {
 //
 // This is not intended for production use, just for development.
 func (w *Webpack) Middleware() medium.Middleware {
-	return func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next medium.NextMiddleware) {
+	return func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		start := time.Now()
 
 		if strings.HasPrefix(r.URL.Path, "/assets/") {
@@ -161,7 +161,7 @@ func (w *Webpack) Middleware() medium.Middleware {
 
 			mlog.Debug(ctx, "webpack asset served", mlog.Fields{"path": r.URL.Path, "duration": time.Since(start).String()})
 		} else {
-			next(ctx, r, rw)
+			next(rw, r)
 		}
 	}
 }

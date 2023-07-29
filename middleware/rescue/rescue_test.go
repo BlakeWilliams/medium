@@ -1,7 +1,6 @@
 package rescue
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,7 +12,7 @@ import (
 func TestRescue(t *testing.T) {
 	r := medium.New(medium.DefaultActionCreator)
 
-	handler := func(ctx context.Context, r *http.Request, rw http.ResponseWriter, err error) {
+	handler := func(rw http.ResponseWriter, r *http.Request, err error) {
 		_, _ = rw.Write([]byte("oh no!"))
 	}
 

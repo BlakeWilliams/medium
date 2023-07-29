@@ -1,7 +1,6 @@
 package httplogger
 
 import (
-	"context"
 	"net/http"
 	"time"
 
@@ -16,18 +15,18 @@ type Statusable interface {
 
 // Middleware accepts an ErrorHandler and returns a medium.Middleware that will
 // rescue errors that happen in middlewares that are called after it.
-func Middleware(ctx context.Context, r *http.Request, rw http.ResponseWriter, next medium.NextMiddleware) {
+func Middleware(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	start := time.Now()
 
 	mlog.Info(
-		ctx,
+		r.Context(),
 		"Handling request",
 		mlog.Fields{
 			"method": r.Method,
 			"path":   r.URL.Path,
 		},
 	)
-	next(ctx, r, rw)
+	next(rw, r)
 	fields := mlog.Fields{
 		"method":   r.Method,
 		"path":     r.URL.Path,
@@ -47,8 +46,8 @@ func Middleware(ctx context.Context, r *http.Request, rw http.ResponseWriter, ne
 
 // Sets the given logger on context so it's available to future middleware
 func ProviderMiddleware(logger mlog.Logger) medium.Middleware {
-	return func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next medium.NextMiddleware) {
-		ctx = mlog.Inject(ctx, logger)
-		next(ctx, r, rw)
+	return func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+		ctx := mlog.Inject(r.Context(), logger)
+		next(rw, r.WithContext(ctx))
 	}
 }

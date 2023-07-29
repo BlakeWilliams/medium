@@ -1,7 +1,6 @@
 package medium
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -28,8 +27,8 @@ func TestGroup_Routes(t *testing.T) {
 	}
 	router := New(DefaultActionCreator)
 
-	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
-		next(ctx, r, rw)
+	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+		next(rw, r)
 	})
 
 	group := NewGroup(router, func(ba *BaseAction, next func(*groupAction)) {
@@ -59,9 +58,9 @@ func TestGroup_Routes(t *testing.T) {
 func TestGroup(t *testing.T) {
 	router := New(DefaultActionCreator)
 
-	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
+	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		rw.Header().Add("x-from-middleware", "wow")
-		next(ctx, r, rw)
+		next(rw, r)
 	})
 
 	group := NewGroup(router, func(ba *BaseAction, next func(*groupAction)) {
@@ -84,9 +83,9 @@ func TestGroup(t *testing.T) {
 func TestGroup_Subgroup(t *testing.T) {
 	router := New(DefaultActionCreator)
 
-	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
+	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		rw.Header().Add("x-from-middleware", "wow")
-		next(ctx, r, rw)
+		next(rw, r)
 	})
 
 	group := NewGroup(router, func(ba *BaseAction, next func(*groupAction)) {
@@ -116,9 +115,9 @@ func TestGroup_Subgroup(t *testing.T) {
 func TestGroup_Subrouter(t *testing.T) {
 	router := New(DefaultActionCreator)
 
-	router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next NextMiddleware) {
+	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		rw.Header().Add("x-from-middleware", "wow")
-		next(ctx, r, rw)
+		next(rw, r)
 	})
 
 	group := Subrouter(router, "/foo", func(ba *BaseAction, next func(*groupAction)) {

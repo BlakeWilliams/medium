@@ -1,21 +1,17 @@
 package medium
 
 import (
-	"context"
 	"net/http"
 )
 
 type dispatchable[T Action] interface {
-	dispatch(r *http.Request, rw http.ResponseWriter) (bool, map[string]string, func(T))
+	dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(T))
 }
-
-// Represents the next middleware to be called in the middleware stack.
-type NextMiddleware func(context.Context, *http.Request, http.ResponseWriter)
 
 // Middleware is a function that is called before the action is executed.
 // See Router.Use for more information.
 // type Middleware func(c Action, next HandlerFunc[Action])
-type Middleware func(context.Context, *http.Request, http.ResponseWriter, NextMiddleware)
+type Middleware func(http.ResponseWriter, *http.Request, http.HandlerFunc)
 
 // A function that handles a request.
 type HandlerFunc[T any] func(T)
@@ -28,7 +24,7 @@ type HandlerFunc[T any] func(T)
 type Router[T Action] struct {
 	routes        []*Route[T]
 	middleware    []Middleware
-	actionCreator func(context.Context, Action, func(T))
+	actionCreator func(Action, func(T))
 	// Called when no route matches the request. Useful for rendering 404 pages.
 	missingRoute HandlerFunc[T]
 
@@ -36,7 +32,7 @@ type Router[T Action] struct {
 }
 
 // Creates a new Router with the given action creator used to create the application's root type.
-func New[T Action](actionCreator func(context.Context, Action, func(T))) *Router[T] {
+func New[T Action](actionCreator func(Action, func(T))) *Router[T] {
 	return &Router[T]{
 		actionCreator: actionCreator,
 		routes:        make([]*Route[T], 0),
@@ -44,23 +40,23 @@ func New[T Action](actionCreator func(context.Context, Action, func(T))) *Router
 }
 
 func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	var handler NextMiddleware
+	var handler http.HandlerFunc
 
-	handler = func(ctx context.Context, r *http.Request, rw http.ResponseWriter) {
-		ok, params, routeHandler := router.dispatch(ctx, r, rw)
+	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ok, params, routeHandler := router.dispatch(rw, r)
 
-		var mediumHandler func(ctx context.Context, a Action)
+		var mediumHandler func(a Action)
 		if ok {
-			mediumHandler = func(ctx context.Context, action Action) {
-				router.actionCreator(ctx, action, func(action T) {
-					routeHandler(ctx, action)
+			mediumHandler = func(action Action) {
+				router.actionCreator(action, func(action T) {
+					routeHandler(action)
 				})
 			}
 		}
 
 		if !ok {
-			mediumHandler = func(ctx context.Context, action Action) {
-				router.actionCreator(ctx, action, func(action T) {
+			mediumHandler = func(action Action) {
+				router.actionCreator(action, func(action T) {
 					if router.missingRoute != nil {
 						router.missingRoute(action)
 					} else {
@@ -72,32 +68,31 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		action := NewAction(rw, r, params)
-		mediumHandler(ctx, action)
-	}
+		mediumHandler(action)
+	})
 
 	for i := len(router.middleware) - 1; i >= 0; i-- {
 		middleware := router.middleware[i]
 		nextHandler := handler
 
-		handler = func(ctx context.Context, r *http.Request, rw http.ResponseWriter) {
-			middleware(ctx, r, rw, nextHandler)
-		}
+		handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			middleware(rw, r, nextHandler)
+		})
 	}
 
-	handler(context.Background(), r, rw)
-
+	handler.ServeHTTP(rw, r)
 }
 
-func (router *Router[T]) dispatch(ctx context.Context, r *http.Request, rw http.ResponseWriter) (bool, map[string]string, func(context.Context, T)) {
+func (router *Router[T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(T)) {
 	if route, params := router.routeFor(r); route != nil {
-		return true, params, func(ctx context.Context, action T) {
+		return true, params, func(action T) {
 			route.handler(action)
 		}
 	}
 
 	for _, group := range router.groups {
-		if ok, params, handler := group.dispatch(r, rw); ok {
-			return true, params, func(ctx context.Context, action T) {
+		if ok, params, handler := group.dispatch(rw, r); ok {
+			return true, params, func(action T) {
 				handler(action)
 			}
 		}

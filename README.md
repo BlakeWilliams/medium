@@ -185,7 +185,7 @@ router := medium.New(func(ctx context.Context, a *medium.BaseAction, next func(*
 })
 
 // Add a middleware that logs the request. Middleware work on raw HTTP types, not medium types.
-router.Use(func(ctx context.Context, r *http.Request, rw http.ResponseWriter, next medium.NextMiddleware) {
+router.Use(func(ctx context.Context, rw http.ResponseWriter, r *http.Request, next medium.NextMiddleware) {
   now := time.Now()
   log.Printf("Started: %s %s", a.Request.Method, a.Request.URL.Path)
 

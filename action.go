@@ -1,12 +1,11 @@
 package medium
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 )
 
-func DefaultActionCreator(ctx context.Context, baseAction Action, next func(*BaseAction)) {
+func DefaultActionCreator(baseAction Action, next func(*BaseAction)) {
 	action := baseAction.(*BaseAction)
 
 	next(action)
