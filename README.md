@@ -65,14 +65,14 @@ func (a *AppAction) Render(w io.Writer, templateName string, data interface{}) e
 // This is also where you write code that is typically handled by
 // before/after/around actions in other frameworks, which is code that is meant
 // to run before or after the route handler is called.
-router := medium.New(func(ctx context.Context, rootAction Action, next func(*AppAction)) {
+router := medium.New(func(rootAction Action, next func(*AppAction)) {
   currentUser := findCurrentUser(a.Request)
   action := AppAction{Action: ba, currentUser: currentUser}
   next(action)
 })
 
 // Add a hello route
-router.Get("/hello/:name", func(ctx context.Context, a AppAction) {
+router.Get("/hello/:name", func(a AppAction) {
   a.Render(a, "hello.html", map[string]any{"name": a.Params["name"]})
 })
 
@@ -90,7 +90,7 @@ in that group or nested subgroup/subrouter of the group will render a 404.
 
 ```go
 // Create a new router
-router := medium.New(func(ctx context.Context, a *medium.BaseAction, next func(*AppAction)) {
+router := medium.New(func(a *medium.BaseAction, next func(*AppAction)) {
   currentUser := findCurrentUser(a.Request)
   action := AppAction{Action: a, currentUser: currentUser}
 
@@ -119,7 +119,7 @@ requiring a specific resource to be present and authorized.
 
 ```go
 // Create a new router
-router := medium.New(func(ctx context.Context, a *medium.BaseAction, next(*AppAction)) {
+router := medium.New(func(a *medium.BaseAction, next(*AppAction)) {
   currentUser := findCurrentUser(a.Request)
   action := AppAction{Action: a, currentUser: currentUser}
   next(action)
@@ -177,7 +177,7 @@ reporting exceptions, etc.
 
 ```go
 // Create a new router
-router := medium.New(func(ctx context.Context, a *medium.BaseAction, next func(*AppAction)) {
+router := medium.New(func(a *medium.BaseAction, next func(*AppAction)) {
   currentUser := findCurrentUser(a.Request)
   action := AppAction{Action: a, currentUser: currentUser}
 
@@ -185,11 +185,11 @@ router := medium.New(func(ctx context.Context, a *medium.BaseAction, next func(*
 })
 
 // Add a middleware that logs the request. Middleware work on raw HTTP types, not medium types.
-router.Use(func(ctx context.Context, rw http.ResponseWriter, r *http.Request, next medium.NextMiddleware) {
+router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
   now := time.Now()
   log.Printf("Started: %s %s", a.Request.Method, a.Request.URL.Path)
 
-  next(ctx, a)
+  next(a)
 
   log.Printf("Served: %s %s in %s", a.Request.Method, a.Request.URL.Path, time.Since(now))
 })
