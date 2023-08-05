@@ -35,11 +35,11 @@ func New(medium http.Handler) *Session {
 	return req
 }
 
-func (ar *Session) Get(route string, headers http.Header) Response {
+func (ar *Session) Get(route string, headers http.Header) *Response {
 	return ar.makeRequest(http.MethodGet, route, headers, nil)
 }
 
-func (ar *Session) PostForm(route string, headers http.Header, formValues url.Values) Response {
+func (ar *Session) PostForm(route string, headers http.Header, formValues url.Values) *Response {
 	if headers == nil {
 		headers = make(http.Header)
 	}
@@ -50,11 +50,11 @@ func (ar *Session) PostForm(route string, headers http.Header, formValues url.Va
 	return ar.makeRequest(http.MethodPost, route, headers, data)
 }
 
-func (ar *Session) FollowRedirect(res Response) Response {
+func (ar *Session) FollowRedirect(res *Response) *Response {
 	return ar.makeRequest(http.MethodGet, res.Header().Get("Location"), nil, nil)
 }
 
-func (ar *Session) makeRequest(method string, route string, headers http.Header, data io.Reader) Response {
+func (ar *Session) makeRequest(method string, route string, headers http.Header, data io.Reader) *Response {
 	req := httptest.NewRequest(method, route, data)
 	req.URL.Scheme = "http"
 	req.URL.Host = "app.test"
@@ -76,5 +76,5 @@ func (ar *Session) makeRequest(method string, route string, headers http.Header,
 	ar.medium.ServeHTTP(recorder, req)
 	ar.CookieJar.SetCookies(req.URL, recorder.Result().Cookies())
 
-	return Response{RawResponse: recorder}
+	return &Response{RawResponse: recorder}
 }
