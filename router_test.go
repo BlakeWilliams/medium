@@ -137,3 +137,35 @@ func TestCustomActionType(t *testing.T) {
 	require.Equal(t, "hello Fox Mulder, data 1", rw.Body.String())
 	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
 }
+
+type myResponseWriter struct {
+	orw http.ResponseWriter
+}
+
+var _ http.ResponseWriter = (*myResponseWriter)(nil)
+
+func (mrw *myResponseWriter) Header() http.Header         { return mrw.orw.Header() }
+func (mrw *myResponseWriter) WriteHeader(s int)           { mrw.orw.WriteHeader(s) }
+func (mrw *myResponseWriter) Write(b []byte) (int, error) { return mrw.orw.Write(b) }
+
+func TestCustomResponseWriter(t *testing.T) {
+	router := New(DefaultActionCreator)
+	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+		mrw := &myResponseWriter{orw: rw}
+		next(mrw, r)
+	})
+
+	called := false
+	router.Get("/", func(ba *BaseAction) {
+		require.IsType(t, &statusForwarder{}, ba.ResponseWriter())
+		srw := ba.ResponseWriter().(*statusForwarder)
+		require.IsType(t, &myResponseWriter{}, srw.originalResponseWriter)
+		called = true
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rw := httptest.NewRecorder()
+	router.ServeHTTP(rw, req)
+
+	require.True(t, called)
+}
