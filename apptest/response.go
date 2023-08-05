@@ -4,10 +4,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 )
 
 type Response struct {
 	RawResponse *httptest.ResponseRecorder
+	bodyCache   []byte
+	mu          sync.Mutex
 }
 
 func (r *Response) Code() int {
@@ -29,8 +32,14 @@ func (r *Response) IsOK() bool {
 }
 
 func (r *Response) Body() string {
-	body, _ := io.ReadAll(r.RawResponse.Result().Body)
-	return string(body)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.bodyCache == nil {
+		r.bodyCache, _ = io.ReadAll(r.RawResponse.Result().Body)
+	}
+
+	return string(r.bodyCache)
 }
 
 func (r *Response) Header() http.Header {
