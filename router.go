@@ -42,7 +42,7 @@ func New[T Action](actionCreator func(Action, func(T))) *Router[T] {
 func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var handler http.HandlerFunc
 
-	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		ok, params, routeHandler := router.dispatch(rw, r)
 
 		var mediumHandler func(a Action)
@@ -52,9 +52,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 					routeHandler(action)
 				})
 			}
-		}
-
-		if !ok {
+		} else {
 			mediumHandler = func(action Action) {
 				router.actionCreator(action, func(action T) {
 					if router.missingRoute != nil {
@@ -85,16 +83,12 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 func (router *Router[T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(T)) {
 	if route, params := router.routeFor(r); route != nil {
-		return true, params, func(action T) {
-			route.handler(action)
-		}
+		return true, params, route.handler
 	}
 
 	for _, group := range router.groups {
 		if ok, params, handler := group.dispatch(rw, r); ok {
-			return true, params, func(action T) {
-				handler(action)
-			}
+			return true, params, handler
 		}
 	}
 
