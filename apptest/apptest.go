@@ -9,14 +9,6 @@ import (
 	"strings"
 )
 
-var RedirectCodes = []int{
-	http.StatusMovedPermanently,
-	http.StatusFound,
-	http.StatusSeeOther,
-	http.StatusTemporaryRedirect,
-	http.StatusPermanentRedirect,
-}
-
 // Represents a request, or requests to a given medium application.
 type Session struct {
 	CookieJar http.CookieJar

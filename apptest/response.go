@@ -7,6 +7,14 @@ import (
 	"sync"
 )
 
+var RedirectCodes = []int{
+	http.StatusMovedPermanently,
+	http.StatusFound,
+	http.StatusSeeOther,
+	http.StatusTemporaryRedirect,
+	http.StatusPermanentRedirect,
+}
+
 type Response struct {
 	RawResponse *httptest.ResponseRecorder
 	bodyCache   []byte
