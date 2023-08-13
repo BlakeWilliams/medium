@@ -23,6 +23,7 @@ type Store[T any] struct {
 	name         string
 	Data         T
 	originalData T
+	writable     bool
 }
 
 // New creates a new Store with the given name and verifies Data using the
@@ -50,6 +51,7 @@ func (s *Store[T]) FromRequest(r *http.Request) error {
 // the data hasn't been tampered with.
 func (s *Store[T]) FromCookie(cookie *http.Cookie) error {
 	if cookie == nil {
+		s.writable = true
 		return nil
 	}
 
@@ -69,6 +71,8 @@ func (s *Store[T]) FromCookie(cookie *http.Cookie) error {
 		return err
 	}
 
+	s.writable = true
+
 	return nil
 }
 
@@ -77,6 +81,10 @@ func (s *Store[T]) FromCookie(cookie *http.Cookie) error {
 // provided by New.
 func (s *Store[T]) Write(w http.ResponseWriter) error {
 	jsonValue, err := json.Marshal(s.Data)
+
+	if !s.writable {
+		return fmt.Errorf("Cannot write to session, not writable due to decode error")
+	}
 
 	if err != nil {
 		return fmt.Errorf("Could not marshal session data: %w", err)

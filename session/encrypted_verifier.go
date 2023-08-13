@@ -18,6 +18,8 @@ type EncryptedVerifier struct {
 
 var _ Verifier = (*EncryptedVerifier)(nil)
 
+var Base64Encoding = base64.RawStdEncoding
+
 // NewEncryptedVerifier creates a new EncryptedVerifier with the given secret.
 // The provided secret must be 16, 24, or 32 bytes long to use AES-128, AES-192,
 // or AES-256 respectively.
@@ -45,8 +47,8 @@ func (v EncryptedVerifier) Encode(data []byte) (string, error) {
 
 	cipherText := gcm.Seal(nil, nonce, []byte(data), nil)
 
-	encodedNonce := base64.URLEncoding.EncodeToString(nonce)
-	encodedCipherText := base64.URLEncoding.EncodeToString(cipherText)
+	encodedNonce := Base64Encoding.EncodeToString(nonce)
+	encodedCipherText := Base64Encoding.EncodeToString(cipherText)
 
 	return fmt.Sprintf("%s--%s", encodedNonce, encodedCipherText), nil
 }
@@ -58,12 +60,12 @@ func (v EncryptedVerifier) Decode(data string) ([]byte, error) {
 		return nil, fmt.Errorf("Invalid message, message format invalid")
 	}
 
-	nonce, err := base64.URLEncoding.DecodeString(parts[0])
+	nonce, err := Base64Encoding.DecodeString(parts[0])
 	if err != nil {
 		return nil, err
 	}
 
-	cipherText, err := base64.URLEncoding.DecodeString(parts[1])
+	cipherText, err := Base64Encoding.DecodeString(parts[1])
 	if err != nil {
 		return nil, err
 	}
