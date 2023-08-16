@@ -1,6 +1,7 @@
 package medium
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 )
@@ -39,6 +40,9 @@ func NewAction(rw http.ResponseWriter, r *http.Request, params map[string]string
 // that embed `Action` and extend their struct with application/context specific
 // behavior.
 type Action interface {
+	// Returns the context for this action. This delegates to the http.Request
+	// object
+	Context() context.Context
 	// Returns the original http.ResponseWriter
 	ResponseWriter() http.ResponseWriter
 	// Sets this actions response writer. This can be used for wrapping the
@@ -106,4 +110,17 @@ func (ba *BaseAction) SetRequest(r *http.Request) {
 	ba.request = r
 }
 
+func (ba *BaseAction) Context() context.Context {
+	return ba.request.Context()
+}
+
+func (ba *BaseAction) Header() http.Header {
+	return ba.responseWriter.Header()
+}
+
+func (ba *BaseAction) WriteHeader(status int) {
+	ba.responseWriter.WriteHeader(status)
+}
+
 var _ Action = &BaseAction{}
+var _ http.ResponseWriter = &BaseAction{}
