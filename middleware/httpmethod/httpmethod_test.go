@@ -13,7 +13,7 @@ func TestRewrite(t *testing.T) {
 	r := medium.New(medium.DefaultActionCreator)
 
 	r.Use(RewriteMiddleware)
-	r.Delete("/", func(ac *medium.BaseAction) {})
+	r.Delete("/", func(r medium.Request[medium.NoData]) {})
 
 	req := httptest.NewRequest(http.MethodDelete, "/", nil)
 	res := httptest.NewRecorder()
@@ -27,7 +27,7 @@ func Test_RewritePost(t *testing.T) {
 	r := medium.New(medium.DefaultActionCreator)
 
 	r.Use(RewriteMiddleware)
-	r.Delete("/", func(ac *medium.BaseAction) {})
+	r.Delete("/", func(ac medium.Request[medium.NoData]) {})
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	res := httptest.NewRecorder()
