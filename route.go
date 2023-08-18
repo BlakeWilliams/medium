@@ -5,6 +5,10 @@ import (
 	"strings"
 )
 
+type routable interface {
+	Request() *http.Request
+}
+
 // A Route is a single route that can be matched against a request and holds a
 // reference to the handler used to handle the reques and holds a reference to
 // the handler used to handle the request.
@@ -17,12 +21,12 @@ type Route[C any] struct {
 
 // Given a request, returns true if the route matches the request and false if
 // not.
-func (r *Route[C]) IsMatch(req *http.Request) (bool, map[string]string) {
-	if r.Method != req.Method {
+func (r *Route[C]) IsMatch(req RootRequest) (bool, map[string]string) {
+	if r.Method != req.Request().Method {
 		return false, nil
 	}
 
-	reqParts := strings.Split(req.URL.Path, "/")
+	reqParts := strings.Split(req.Request().URL.Path, "/")
 
 	if len(r.parts) != len(reqParts) {
 		return false, nil

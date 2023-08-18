@@ -6,10 +6,11 @@ import (
 	"net/url"
 )
 
-func DefaultActionCreator(baseAction Action, next func(*BaseAction)) {
-	action := baseAction.(*BaseAction)
+// NoData is a placeholder type for the default action creator.
+type NoData = struct{}
 
-	next(action)
+func DefaultActionCreator(rootRequest RootRequest, next func(NoData)) {
+	next(NoData{})
 }
 
 // Creates a new BaseAction which implements the Action interface. It is used as

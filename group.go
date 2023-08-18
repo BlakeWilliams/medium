@@ -7,14 +7,14 @@ import (
 
 // registerable represents a type that can be registered on a router or a group
 // to create subgroups/subrouters.
-type registerable[T Action] interface {
+type registerable[T any] interface {
 	register(dispatchable[T])
 	prefix() string
 }
 
 // Group represents a collection of routes that share a common set of
 // Around/Before/After callbacks and Action type (T)
-type Group[P Action, T Action] struct {
+type Group[P any, T any] struct {
 	routes        []*Route[T]
 	actionCreator func(P, func(T))
 	subgroups     []dispatchable[T]
@@ -41,7 +41,7 @@ type Group[P Action, T Action] struct {
 //	|-Group[LoggedInAction, Admin]
 //	  |
 //	  |_ Group[Admin, SuperAdmin]
-func Subrouter[P Action, T Action, Y registerable[P]](parent Y, prefix string, creator func(P, func(T))) *Group[P, T] {
+func Subrouter[ParentData any, Data any, Parent registerable[ParentData]](parent Parent, prefix string, creator func(ParentData, func(Data))) *Group[ParentData, Data] {
 	group := NewGroup(parent, creator)
 	group.routePrefix = parent.prefix() + prefix
 
@@ -53,8 +53,8 @@ func Subrouter[P Action, T Action, Y registerable[P]](parent Y, prefix string, c
 //
 // An action creator function is passed to the NewGroup, so that it can reference
 // fields from the parent action type.
-func NewGroup[P Action, T Action, Y registerable[P]](parent Y, creator func(P, func(T))) *Group[P, T] {
-	group := &Group[P, T]{routes: make([]*Route[T], 0), actionCreator: creator}
+func NewGroup[ParentData any, Data any, Parent registerable[ParentData]](parent Parent, creator func(ParentData, func(Data))) *Group[ParentData, Data] {
+	group := &Group[ParentData, Data]{routes: make([]*Route[Data], 0), actionCreator: creator}
 	group.routePrefix = parent.prefix()
 	parent.register(group)
 
@@ -103,20 +103,20 @@ func (g *Group[P, T]) Delete(path string, handler HandlerFunc[T]) {
 }
 
 // Implements Dispatchable so groups can be registered on routers
-func (g *Group[P, T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(P)) {
-	if route, params := g.routeFor(r); route != nil {
-		return true, params, func(action P) {
-			g.actionCreator(action, func(action T) {
-				route.handler(action)
+func (g *Group[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, map[string]string, func(Request[ParentData])) {
+	if route, params := g.routeFor(rootRequest); route != nil {
+		return true, params, func(req Request[ParentData]) {
+			g.actionCreator(req.Data, func(data Data) {
+				route.handler(Request[Data]{root: rootRequest, routeParams: params, Data: data})
 			})
 		}
 	}
 
 	for _, group := range g.subgroups {
-		if ok, params, handler := group.dispatch(rw, r); ok {
-			return true, params, func(action P) {
-				g.actionCreator(action, func(action T) {
-					handler(action)
+		if ok, params, handler := group.dispatch(rootRequest); ok {
+			return true, params, func(req Request[ParentData]) {
+				g.actionCreator(req.Data, func(data Data) {
+					handler(Request[Data]{root: rootRequest, routeParams: params, Data: data})
 				})
 			}
 		}
@@ -125,9 +125,9 @@ func (g *Group[P, T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool, m
 	return false, nil, nil
 }
 
-func (g *Group[P, T]) routeFor(r *http.Request) (*Route[T], map[string]string) {
+func (g *Group[ParentData, Data]) routeFor(req RootRequest) (*Route[Data], map[string]string) {
 	for _, route := range g.routes {
-		if ok, params := route.IsMatch(r); ok {
+		if ok, params := route.IsMatch(req); ok {
 			return route, params
 		}
 	}

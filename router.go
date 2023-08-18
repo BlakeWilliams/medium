@@ -4,9 +4,12 @@ import (
 	"net/http"
 )
 
-type dispatchable[T Action] interface {
-	dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(T))
+type dispatchable[T any] interface {
+	dispatch(r RootRequest) (bool, map[string]string, func(Request[T]))
 }
+
+var _ dispatchable[Action] = (*Router[Action])(nil)
+var _ dispatchable[Action] = (*Group[Action, Action])(nil)
 
 // Middleware is a function that is called before the action is executed.
 // See Router.Use for more information.
@@ -14,17 +17,17 @@ type dispatchable[T Action] interface {
 type Middleware func(http.ResponseWriter, *http.Request, http.HandlerFunc)
 
 // A function that handles a request.
-type HandlerFunc[T any] func(T)
+type HandlerFunc[T any] func(Request[T])
 
 // Convenience type for middleware handlers
 // type MiddlewareFunc = HandlerFunc[Action]
 
 // Router is a collection of Routes and is used to dispatch requests to the
 // correct Route handler.
-type Router[T Action] struct {
-	routes        []*Route[T]
-	middleware    []Middleware
-	actionCreator func(Action, func(T))
+type Router[T any] struct {
+	routes      []*Route[T]
+	middleware  []Middleware
+	dataCreator func(RootRequest, func(T))
 	// Called when no route matches the request. Useful for rendering 404 pages.
 	missingRoute HandlerFunc[T]
 
@@ -32,10 +35,10 @@ type Router[T Action] struct {
 }
 
 // Creates a new Router with the given action creator used to create the application's root type.
-func New[T Action](actionCreator func(Action, func(T))) *Router[T] {
+func New[T any](dataCreator func(RootRequest, func(T))) *Router[T] {
 	return &Router[T]{
-		actionCreator: actionCreator,
-		routes:        make([]*Route[T], 0),
+		dataCreator: dataCreator,
+		routes:      make([]*Route[T], 0),
 	}
 }
 
@@ -43,30 +46,31 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var handler http.HandlerFunc
 
 	handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		ok, params, routeHandler := router.dispatch(rw, r)
+		rootRequest := RootRequest{originalRequest: r, response: &response{responseWriter: rw}}
+		ok, params, routeHandler := router.dispatch(rootRequest)
 
-		var mediumHandler func(a Action)
+		var mediumHandler func()
+
 		if ok {
-			mediumHandler = func(action Action) {
-				router.actionCreator(action, func(action T) {
-					routeHandler(action)
+			mediumHandler = func() {
+				router.dataCreator(rootRequest, func(data T) {
+					routeHandler(Request[T]{root: rootRequest, routeParams: params, Data: data})
 				})
 			}
 		} else {
-			mediumHandler = func(action Action) {
-				router.actionCreator(action, func(action T) {
+			mediumHandler = func() {
+				router.dataCreator(rootRequest, func(data T) {
 					if router.missingRoute != nil {
-						router.missingRoute(action)
+						router.missingRoute(Request[T]{root: rootRequest, routeParams: params, Data: data})
 					} else {
-						action.ResponseWriter().WriteHeader(http.StatusNotFound)
-						_, _ = action.Write([]byte("404 not found"))
+						rootRequest.Response().WriteHeader(http.StatusNotFound)
+						_, _ = rootRequest.Response().Write([]byte("404 not found"))
 					}
 				})
 			}
 		}
 
-		action := NewAction(rw, r, params)
-		mediumHandler(action)
+		mediumHandler()
 	})
 
 	for i := len(router.middleware) - 1; i >= 0; i-- {
@@ -81,13 +85,13 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	handler.ServeHTTP(rw, r)
 }
 
-func (router *Router[T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(T)) {
+func (router *Router[T]) dispatch(r RootRequest) (bool, map[string]string, func(Request[T])) {
 	if route, params := router.routeFor(r); route != nil {
 		return true, params, route.handler
 	}
 
 	for _, group := range router.groups {
-		if ok, params, handler := group.dispatch(rw, r); ok {
+		if ok, params, handler := group.dispatch(r); ok {
 			return true, params, handler
 		}
 	}
@@ -95,7 +99,7 @@ func (router *Router[T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool
 	return false, nil, nil
 }
 
-func (router *Router[T]) routeFor(r *http.Request) (*Route[T], map[string]string) {
+func (router *Router[T]) routeFor(r RootRequest) (*Route[T], map[string]string) {
 	for _, route := range router.routes {
 		if ok, params := route.IsMatch(r); ok {
 			return route, params
