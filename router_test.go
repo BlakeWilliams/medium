@@ -19,6 +19,13 @@ func TestHappyPath(t *testing.T) {
 		next(rw, r)
 	})
 
+	router.Before(func(req Request[NoData], next Next) Response {
+		res := next()
+		res.Header().Add("x-from-before", "amazing")
+
+		return res
+	})
+
 	router.Get("/hello/:name", func(c Request[NoData]) Response {
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
 	})
@@ -30,6 +37,7 @@ func TestHappyPath(t *testing.T) {
 
 	require.Equal(t, "hello Fox Mulder", rw.Body.String())
 	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
+	require.Equal(t, "amazing", rw.Header().Get("x-from-before"))
 }
 
 func TestGroup_RouteMethods(t *testing.T) {
@@ -213,4 +221,64 @@ func TestWritesHeaders(t *testing.T) {
 	router.ServeHTTP(rw, req)
 
 	require.Equal(t, "bar", rw.Header().Get("x-foo"))
+}
+
+func TestBefore_EarlyExit(t *testing.T) {
+	router := New(DefaultActionCreator)
+
+	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+		rw.Header().Add("x-from-middleware", "wow")
+		next(rw, r)
+	})
+
+	firstBeforeCalled := false
+	router.Before(func(req Request[NoData], next Next) Response {
+		firstBeforeCalled = true
+		return StringResponse(http.StatusNotFound, "not found")
+	})
+
+	secondBeforeCalled := false
+	router.Before(func(req Request[NoData], next Next) Response {
+		secondBeforeCalled = true
+		return next()
+	})
+
+	routeCalled := false
+	router.Get("/hello/:name", func(c Request[NoData]) Response {
+		routeCalled = true
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
+	rw := httptest.NewRecorder()
+
+	router.ServeHTTP(rw, req)
+
+	require.Equal(t, http.StatusNotFound, rw.Code)
+	require.True(t, firstBeforeCalled)
+	require.False(t, secondBeforeCalled)
+	require.False(t, routeCalled)
+}
+
+func TestBefore_DifferentDataType(t *testing.T) {
+	router := New(func(rootRequest RootRequest) *MyData {
+		return &MyData{Value: 1}
+	})
+
+	router.Before(func(req Request[*MyData], next Next) Response {
+		return GenericBefore(req, next)
+	})
+
+	router.Get("/hello/:name", func(c Request[*MyData]) Response {
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
+	rw := httptest.NewRecorder()
+
+	router.ServeHTTP(rw, req)
+}
+
+func GenericBefore[T any](req Request[T], next Next) Response {
+	return next()
 }

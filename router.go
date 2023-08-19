@@ -20,6 +20,12 @@ type Middleware func(http.ResponseWriter, *http.Request, http.HandlerFunc)
 // A function that handles a request.
 type HandlerFunc[T any] func(Request[T]) Response
 
+// A function that calls the next BeforeFunc or HandlerFunc in the chain.
+type Next func() Response
+
+// A function that is called before the action is executed.
+type BeforeFunc[T any] (func(req Request[T], next Next) Response)
+
 // Convenience type for middleware handlers
 // type MiddlewareFunc = HandlerFunc[Action]
 
@@ -27,7 +33,8 @@ type HandlerFunc[T any] func(Request[T]) Response
 // correct Route handler.
 type Router[T any] struct {
 	routes      []*Route[T]
-	middleware  []Middleware
+	middlewares []Middleware
+	befores     []BeforeFunc[T]
 	dataCreator func(RootRequest) T
 	// Called when no route matches the request. Useful for rendering 404 pages.
 	missingRoute HandlerFunc[T]
@@ -57,6 +64,16 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				data := router.dataCreator(rootRequest)
 				return routeHandler(Request[T]{root: rootRequest, routeParams: params, Data: data})
 			}
+
+			// Run before actions
+			for i := len(router.befores) - 1; i >= 0; i-- {
+				before := router.befores[i]
+				nextHandler := mediumHandler
+
+				mediumHandler = func() Response {
+					return before(Request[T]{root: rootRequest, routeParams: params, Data: router.dataCreator(rootRequest)}, nextHandler)
+				}
+			}
 		} else {
 			mediumHandler = func() Response {
 				data := router.dataCreator(rootRequest)
@@ -83,8 +100,8 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 	})
 
-	for i := len(router.middleware) - 1; i >= 0; i-- {
-		middleware := router.middleware[i]
+	for i := len(router.middlewares) - 1; i >= 0; i-- {
+		middleware := router.middlewares[i]
 		nextHandler := handler
 
 		handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -165,7 +182,7 @@ func (r *Router[T]) Missing(handler HandlerFunc[T]) {
 // Middleware is called in the order that they are added. Middleware must call
 // next in order to continue the request, otherwise the request is halted.
 func (r *Router[T]) Use(middleware Middleware) {
-	r.middleware = append(r.middleware, middleware)
+	r.middlewares = append(r.middlewares, middleware)
 }
 
 var _ registerable[Action] = (*Router[Action])(nil)
@@ -175,3 +192,7 @@ func (r *Router[T]) register(group dispatchable[T]) {
 }
 
 func (r *Router[T]) prefix() string { return "" }
+
+func (r *Router[T]) Before(before BeforeFunc[T]) {
+	r.befores = append(r.befores, before)
+}
