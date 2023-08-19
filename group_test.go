@@ -35,15 +35,14 @@ func TestGroup_Routes(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := NewGroup(router, func(og NoData, next func(MyData)) {
-		next(MyData{Value: 1})
+	group := NewGroup(router, func(og NoData) MyData {
+		return MyData{Value: 1}
 	})
 
 	for name, tc := range testCases {
 		path := reflect.ValueOf("/")
-		handler := reflect.ValueOf(func(r Request[MyData]) {
-			r.Response().WriteHeader(http.StatusOK)
-			r.Response().Write([]byte("hello"))
+		handler := reflect.ValueOf(func(r Request[MyData]) Response {
+			return StringResponse(http.StatusOK, "hello")
 		})
 
 		t.Run(name, func(t *testing.T) {
@@ -66,11 +65,11 @@ func TestGroup(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := NewGroup(router, func(_ NoData, next func(MyData)) {
-		next(MyData{Value: 1})
+	group := NewGroup(router, func(_ NoData) MyData {
+		return MyData{Value: 1}
 	})
-	group.Get("/hello/:name", func(r Request[MyData]) {
-		r.Response().Write([]byte(fmt.Sprintf("hello %s", r.Params()["name"])))
+	group.Get("/hello/:name", func(r Request[MyData]) Response {
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
@@ -90,18 +89,18 @@ func TestGroup_Subgroup(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := NewGroup[NoData, MyData, registerable[NoData]](router, func(data NoData, next func(MyData)) {
-		next(MyData{Value: 1})
+	group := NewGroup[NoData, MyData, registerable[NoData]](router, func(data NoData) MyData {
+		return MyData{Value: 1}
 	})
 
-	subgroup := NewGroup(group, func(data MyData, next func(MyData)) {
+	subgroup := NewGroup(group, func(data MyData) MyData {
 		data.Value += 1
-		next(data)
+		return data
 	})
 
-	subgroup.Get("/hello/:name", func(c Request[MyData]) {
+	subgroup.Get("/hello/:name", func(c Request[MyData]) Response {
 		require.Equal(t, 2, c.Data.Value)
-		c.Response().Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
@@ -121,28 +120,28 @@ func TestGroup_Subrouter(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := Subrouter(router, "/foo", func(_ NoData, next func(MyData)) {
-		next(MyData{Value: 1})
+	group := Subrouter(router, "/foo", func(_ NoData) MyData {
+		return MyData{Value: 1}
 	})
 
-	subgroup := Subrouter(group, "/bar", func(data MyData, next func(MyData)) {
+	subgroup := Subrouter(group, "/bar", func(data MyData) MyData {
 		data.Value += 1
-		next(data)
+		return data
 	})
 
-	subgroup.Get("/hello/:name", func(c Request[MyData]) {
+	subgroup.Get("/hello/:name", func(c Request[MyData]) Response {
 		require.Equal(t, 2, c.Data.Value)
-		c.Response().Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
 	})
 
-	subsubgroup := Subrouter(subgroup, "/baz", func(data MyData, next func(MyData)) {
+	subsubgroup := Subrouter(subgroup, "/baz", func(data MyData) MyData {
 		data.Value += 1
-		next(data)
+		return data
 	})
 
-	subsubgroup.Get("/hello/:name", func(c Request[MyData]) {
+	subsubgroup.Get("/hello/:name", func(c Request[MyData]) Response {
 		require.Equal(t, 3, c.Data.Value)
-		c.Response().Write([]byte(fmt.Sprintf("hello again %s", c.Params()["name"])))
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello again %s", c.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/foo/bar/hello/Fox%20Mulder", nil)

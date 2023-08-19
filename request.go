@@ -5,9 +5,9 @@ import (
 	"net/http"
 )
 
-// Response is an interface that represents the response that will be sent to the
+// ResponseWriter is an interface that represents the response that will be sent to the
 // client.
-type Response interface {
+type ResponseWriter interface {
 	// Status returns the status code that will be written to the response.
 	Status() int
 	// Body returns the body that will be written to the response.
@@ -26,7 +26,7 @@ type response struct {
 	responseWriter http.ResponseWriter
 }
 
-var _ Response = (*response)(nil)
+var _ ResponseWriter = (*response)(nil)
 
 func (r response) Status() int                 { return r.status }
 func (r response) Body() io.ReadCloser         { return r.body }
@@ -37,7 +37,7 @@ func (r response) Write(b []byte) (int, error) { return r.responseWriter.Write(b
 
 type handlerContext interface {
 	Request() *http.Request
-	Response() Response
+	Response() ResponseWriter
 }
 
 // RootRequest is a wrapper around http.Request that contains the original Request
@@ -45,7 +45,7 @@ type handlerContext interface {
 // no application specific data to store.
 type RootRequest struct {
 	originalRequest *http.Request
-	response        Response
+	response        ResponseWriter
 }
 
 var _ handlerContext = (*RootRequest)(nil)
@@ -57,7 +57,7 @@ func (r RootRequest) Writer() http.ResponseWriter { return r.response }
 func (r RootRequest) Request() *http.Request { return r.originalRequest }
 
 // Response returns the response that will be sent to the client.
-func (r RootRequest) Response() Response { return r.response }
+func (r RootRequest) Response() ResponseWriter { return r.response }
 
 // Request is a wrapper around http.Request that contains the original Request
 // object and the response writer. It also can contain application specific data
@@ -77,7 +77,7 @@ func (r Request[Data]) Writer() http.ResponseWriter { return r.root.response }
 func (r Request[Data]) Request() *http.Request { return r.root.originalRequest }
 
 // Response returns the response that will be sent to the client.
-func (r Request[Data]) Response() Response { return r.root.response }
+func (r Request[Data]) Response() ResponseWriter { return r.root.response }
 
 // Params returns the route parameters that were matched.
 func (r Request[Data]) Params() map[string]string { return r.routeParams }

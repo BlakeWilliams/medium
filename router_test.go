@@ -19,8 +19,8 @@ func TestHappyPath(t *testing.T) {
 		next(rw, r)
 	})
 
-	router.Get("/hello/:name", func(c Request[NoData]) {
-		c.Response().Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
+	router.Get("/hello/:name", func(c Request[NoData]) Response {
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
@@ -46,9 +46,13 @@ func TestGroup_RouteMethods(t *testing.T) {
 
 	for name, tc := range testCases {
 		path := reflect.ValueOf("/")
-		var handler HandlerFunc[NoData] = func(r Request[NoData]) {
-			r.Response().WriteHeader(http.StatusOK)
-			r.Response().Write([]byte("hello"))
+		var handler HandlerFunc[NoData] = func(r Request[NoData]) Response {
+			var res ResponseBuilder
+
+			res.Status(http.StatusOK)
+			res.StringBody("hello")
+
+			return res.Response()
 		}
 
 		handlerValue := reflect.ValueOf(handler)
@@ -68,8 +72,8 @@ func TestGroup_RouteMethods(t *testing.T) {
 func TestRouter_Post(t *testing.T) {
 	router := New(DefaultActionCreator)
 
-	router.Post("/hello/:name", func(c Request[NoData]) {
-		c.Response().Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
+	router.Post("/hello/:name", func(c Request[NoData]) Response {
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/hello/Fox%20Mulder", nil)
@@ -95,9 +99,8 @@ func TestRouter_MissingRoute_NoHandler(t *testing.T) {
 func TestRouter_MissingRoute_WithHandler(t *testing.T) {
 	router := New(DefaultActionCreator)
 
-	router.Missing(func(c Request[NoData]) {
-		c.Response().WriteHeader(http.StatusNotFound)
-		c.Response().Write([]byte("Sorry, can't find that page."))
+	router.Missing(func(c Request[NoData]) Response {
+		return StringResponse(http.StatusNotFound, "Sorry, can't find that page.")
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/where/do/i/go", nil)
@@ -110,8 +113,8 @@ func TestRouter_MissingRoute_WithHandler(t *testing.T) {
 }
 
 func TestCustomActionType(t *testing.T) {
-	router := New[*MyData](func(rootRequest RootRequest, next func(*MyData)) {
-		next(&MyData{Value: 1})
+	router := New[*MyData](func(rootRequest RootRequest) *MyData {
+		return &MyData{Value: 1}
 	})
 
 	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
@@ -119,8 +122,8 @@ func TestCustomActionType(t *testing.T) {
 		next(rw, r)
 	})
 
-	router.Get("/hello/:name", func(c Request[*MyData]) {
-		c.Response().Write([]byte(fmt.Sprintf("hello %s, data %d", c.Params()["name"], c.Data.Value)))
+	router.Get("/hello/:name", func(c Request[*MyData]) Response {
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s, data %d", c.Params()["name"], c.Data.Value))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
@@ -150,9 +153,11 @@ func TestCustomResponseWriter(t *testing.T) {
 	})
 
 	called := false
-	router.Get("/", func(ba Request[NoData]) {
+	router.Get("/", func(ba Request[NoData]) Response {
 		require.IsType(t, &myResponseWriter{}, ba.Response().Writer())
 		called = true
+
+		return OK()
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -170,9 +175,11 @@ func TestCustomResponse(t *testing.T) {
 	})
 
 	called := false
-	router.Get("/", func(ba Request[NoData]) {
+	router.Get("/", func(ba Request[NoData]) Response {
 		require.Equal(t, "bar", ba.Request().Context().Value("foo"))
 		called = true
+
+		return OK()
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -180,4 +187,24 @@ func TestCustomResponse(t *testing.T) {
 	router.ServeHTTP(rw, req)
 
 	require.True(t, called)
+}
+
+func TestWritesHeaders(t *testing.T) {
+	router := New(DefaultActionCreator)
+	router.Get("/", func(ba Request[NoData]) Response {
+		var res ResponseBuilder
+
+		res.Status(http.StatusOK)
+		res.Header("x-foo", "bar")
+		res.StringBody("hello")
+
+		return res.Response()
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rw := httptest.NewRecorder()
+
+	router.ServeHTTP(rw, req)
+
+	require.Equal(t, "bar", rw.Header().Get("x-foo"))
 }

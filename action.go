@@ -9,8 +9,8 @@ import (
 // NoData is a placeholder type for the default action creator.
 type NoData = struct{}
 
-func DefaultActionCreator(rootRequest RootRequest, next func(NoData)) {
-	next(NoData{})
+func DefaultActionCreator(rootRequest RootRequest) NoData {
+	return NoData{}
 }
 
 // Creates a new BaseAction which implements the Action interface. It is used as
