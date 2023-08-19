@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 	"net/http"
-	"strings"
 )
 
 // NoData is a placeholder type for the default action creator.
@@ -26,28 +25,20 @@ type Response interface {
 	Body() io.Reader
 }
 
-type basicResponse struct {
-	status int
-	header http.Header
-	body   io.Reader
-}
-
-func (br basicResponse) Status() int {
-	if br.status == 0 {
-		return http.StatusOK
+// NewResponse returns a new ResponseBuilder that can be used to build a response.
+func NewResponse() *ResponseBuilder {
+	return &ResponseBuilder{
+		status: http.StatusOK,
+		header: http.Header{},
 	}
-
-	return br.status
-}
-func (br basicResponse) Header() http.Header { return br.header }
-func (br basicResponse) Body() io.Reader     { return br.body }
-
-func FullResponse(status int, header http.Header, body io.Reader) Response {
-	return basicResponse{status: status, header: header, body: body}
 }
 
 func StringResponse(status int, body string) Response {
-	return basicResponse{status: status, header: http.Header{}, body: strings.NewReader(body)}
+	res := NewResponse()
+	res.WriteStatus(status)
+	res.WriteString(body)
+
+	return res
 }
 
 // OK returns a response with a 200 status code and a body of "OK".
@@ -57,15 +48,16 @@ func OK() Response {
 
 // Redirect returns an HTTP response to redirect the client to the provided URL.
 func Redirect(to string) Response {
-	return basicResponse{
-		status: http.StatusFound,
-		header: http.Header{
-			"Location": []string{to},
-		},
-		body: strings.NewReader("redirecting to " + to),
-	}
+	res := NewResponse()
+	res.WriteStatus(http.StatusFound)
+	res.Header().Set("Location", to)
+	res.WriteString("redirecting to " + to)
+
+	return res
 }
 
+// ResponseBuilder is a helper struct that can be used to build a response. It
+// implements the response interface and can be returned directly from handlers.
 type ResponseBuilder struct {
 	status int
 	header http.Header
@@ -73,11 +65,14 @@ type ResponseBuilder struct {
 }
 
 var _ io.Writer = (*ResponseBuilder)(nil)
+var _ Response = (*ResponseBuilder)(nil)
 
-func (rb *ResponseBuilder) Status(status int)      { rb.status = status }
-func (rb *ResponseBuilder) Body(body io.Reader)    { rb.body = body }
-func (rb *ResponseBuilder) StringBody(body string) { rb.body = strings.NewReader(body) }
-func (rb *ResponseBuilder) BytesBody(body []byte)  { rb.body = bytes.NewReader(body) }
+// WriteStatus sets the status code for the response. It does not prevent
+// the status code from being changed by a middleware or writing additional
+// headers.
+func (rb *ResponseBuilder) WriteStatus(status int) { rb.status = status }
+
+// Write writes the provided bytes to the response body.
 func (rb *ResponseBuilder) Write(p []byte) (int, error) {
 	if rb.body == nil {
 		rb.body = bytes.NewReader(p)
@@ -87,14 +82,23 @@ func (rb *ResponseBuilder) Write(p []byte) (int, error) {
 
 	return len(p), nil
 }
-func (rb *ResponseBuilder) Header(key, value string) {
+
+// WriteString writes the provided string to the response body.
+func (rb *ResponseBuilder) WriteString(s string) (int, error) {
+	return rb.Write([]byte(s))
+}
+
+// Body returns the body of the response.
+func (rb *ResponseBuilder) Body() io.Reader { return rb.body }
+
+// Status returns the status code of the response.
+func (rb *ResponseBuilder) Status() int { return rb.status }
+
+// Header returns the header map for the response.
+func (rb *ResponseBuilder) Header() http.Header {
 	if rb.header == nil {
 		rb.header = http.Header{}
 	}
 
-	rb.header.Set(key, value)
-}
-
-func (rb ResponseBuilder) Response() Response {
-	return basicResponse{status: rb.status, header: rb.header, body: rb.body}
+	return rb.header
 }

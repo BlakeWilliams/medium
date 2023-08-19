@@ -33,9 +33,10 @@ func RegisterSentMailViewer[T any](router *medium.Router[T], mailer *Mailer) {
 		}
 		data["ChildContent"] = bat.Safe(childContent.String())
 
-		var res medium.ResponseBuilder
-		renderer.Render(&res, "views/layout.html", data)
-		return res.Response()
+		res := medium.NewResponse()
+		renderer.Render(res, "views/layout.html", data)
+
+		return res
 	})
 
 	router.Get("/_mailer/sent/:index", func(ctx context.Context, r medium.Request[T]) medium.Response {
@@ -58,11 +59,10 @@ func RegisterSentMailViewer[T any](router *medium.Router[T], mailer *Mailer) {
 		}
 		data["ChildContent"] = bat.Safe(childContent.String())
 
-		var res medium.ResponseBuilder
-		renderer.Render(&res, "views/layout.html", data)
-		_ = renderer.Render(&res, "views/layout.html", data)
+		res := medium.NewResponse()
+		_ = renderer.Render(res, "views/layout.html", data)
 
-		return res.Response()
+		return res
 	})
 
 	router.Get("/_mailer/sent/:index/content/:contentIndex/body", func(ctx context.Context, r medium.Request[T]) medium.Response {

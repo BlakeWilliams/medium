@@ -94,9 +94,9 @@ func TestGroup_Subgroup(t *testing.T) {
 		return data
 	})
 
-	subgroup.Get("/hello/:name", func(ctx context.Context, c Request[MyData]) Response {
-		require.Equal(t, 2, c.Data.Value)
-		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
+	subgroup.Get("/hello/:name", func(ctx context.Context, r Request[MyData]) Response {
+		require.Equal(t, 2, r.Data.Value)
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
@@ -125,9 +125,9 @@ func TestGroup_Subrouter(t *testing.T) {
 		return data
 	})
 
-	subgroup.Get("/hello/:name", func(ctx context.Context, c Request[MyData]) Response {
-		require.Equal(t, 2, c.Data.Value)
-		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
+	subgroup.Get("/hello/:name", func(ctx context.Context, r Request[MyData]) Response {
+		require.Equal(t, 2, r.Data.Value)
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
 	subsubgroup := Subrouter(subgroup, "/baz", func(data MyData) MyData {
@@ -135,9 +135,9 @@ func TestGroup_Subrouter(t *testing.T) {
 		return data
 	})
 
-	subsubgroup.Get("/hello/:name", func(ctx context.Context, c Request[MyData]) Response {
-		require.Equal(t, 3, c.Data.Value)
-		return StringResponse(http.StatusOK, fmt.Sprintf("hello again %s", c.Params()["name"]))
+	subsubgroup.Get("/hello/:name", func(ctx context.Context, r Request[MyData]) Response {
+		require.Equal(t, 3, r.Data.Value)
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello again %s", r.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/foo/bar/hello/Fox%20Mulder", nil)

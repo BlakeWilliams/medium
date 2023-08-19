@@ -55,12 +55,12 @@ func TestGroup_RouteMethods(t *testing.T) {
 	for name, tc := range testCases {
 		path := reflect.ValueOf("/")
 		var handler HandlerFunc[NoData] = func(ctx context.Context, r Request[NoData]) Response {
-			var res ResponseBuilder
+			res := NewResponse()
 
-			res.Status(http.StatusOK)
-			res.StringBody("hello")
+			res.WriteStatus(http.StatusOK)
+			res.WriteString("hello")
 
-			return res.Response()
+			return res
 		}
 
 		handlerValue := reflect.ValueOf(handler)
@@ -206,13 +206,13 @@ func TestCustomResponse(t *testing.T) {
 func TestWritesHeaders(t *testing.T) {
 	router := New(WithNoData)
 	router.Get("/", func(ctx context.Context, ba Request[NoData]) Response {
-		var res ResponseBuilder
+		res := NewResponse()
 
-		res.Status(http.StatusOK)
-		res.Header("x-foo", "bar")
-		res.StringBody("hello")
+		res.WriteStatus(http.StatusOK)
+		res.Header().Add("x-foo", "bar")
+		res.WriteString("hello")
 
-		return res.Response()
+		return res
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
