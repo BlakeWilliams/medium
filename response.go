@@ -52,10 +52,21 @@ type ResponseBuilder struct {
 	body   io.Reader
 }
 
+var _ io.Writer = (*ResponseBuilder)(nil)
+
 func (rb *ResponseBuilder) Status(status int)      { rb.status = status }
 func (rb *ResponseBuilder) Body(body io.Reader)    { rb.body = body }
 func (rb *ResponseBuilder) StringBody(body string) { rb.body = strings.NewReader(body) }
 func (rb *ResponseBuilder) BytesBody(body []byte)  { rb.body = bytes.NewReader(body) }
+func (rb *ResponseBuilder) Write(p []byte) (int, error) {
+	if rb.body == nil {
+		rb.body = bytes.NewReader(p)
+	} else {
+		rb.body = io.MultiReader(rb.body, bytes.NewReader(p))
+	}
+
+	return len(p), nil
+}
 func (rb *ResponseBuilder) Header(key, value string) {
 	if rb.header == nil {
 		rb.header = http.Header{}

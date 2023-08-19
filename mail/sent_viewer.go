@@ -20,7 +20,7 @@ func RegisterSentMailViewer[T any](router *medium.Router[T], mailer *Mailer) {
 		panic(err)
 	}
 
-	router.Get("/_mailer", func(r medium.Request[T]) {
+	router.Get("/_mailer", func(r medium.Request[T]) medium.Response {
 		data := map[string]interface{}{
 			"SentMail": mailer.SentMail,
 		}
@@ -32,10 +32,12 @@ func RegisterSentMailViewer[T any](router *medium.Router[T], mailer *Mailer) {
 		}
 		data["ChildContent"] = bat.Safe(childContent.String())
 
-		_ = renderer.Render(r.Response(), "views/layout.html", data)
+		var res medium.ResponseBuilder
+		renderer.Render(&res, "views/layout.html", data)
+		return res.Response()
 	})
 
-	router.Get("/_mailer/sent/:index", func(r medium.Request[T]) {
+	router.Get("/_mailer/sent/:index", func(r medium.Request[T]) medium.Response {
 		strIndex := r.Params()["index"]
 		index, err := strconv.Atoi(strIndex)
 
@@ -55,10 +57,14 @@ func RegisterSentMailViewer[T any](router *medium.Router[T], mailer *Mailer) {
 		}
 		data["ChildContent"] = bat.Safe(childContent.String())
 
-		_ = renderer.Render(r.Response(), "views/layout.html", data)
+		var res medium.ResponseBuilder
+		renderer.Render(&res, "views/layout.html", data)
+		_ = renderer.Render(&res, "views/layout.html", data)
+
+		return res.Response()
 	})
 
-	router.Get("/_mailer/sent/:index/content/:contentIndex/body", func(r medium.Request[T]) {
+	router.Get("/_mailer/sent/:index/content/:contentIndex/body", func(r medium.Request[T]) medium.Response {
 		strIndex := r.Params()["index"]
 		index, err := strconv.Atoi(strIndex)
 		if err != nil {
@@ -71,6 +77,6 @@ func RegisterSentMailViewer[T any](router *medium.Router[T], mailer *Mailer) {
 			panic(err)
 		}
 
-		r.Response().Write([]byte(mailer.SentMail[index].Contents[contentIndex].Body))
+		return medium.StringResponse(200, mailer.SentMail[index].Contents[contentIndex].Body)
 	})
 }
