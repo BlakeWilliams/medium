@@ -11,7 +11,7 @@ import (
 )
 
 func TestRescue(t *testing.T) {
-	r := medium.New(medium.DefaultActionCreator)
+	r := medium.New(medium.WithNoData)
 
 	handler := func(rw http.ResponseWriter, r *http.Request, err error) {
 		_, _ = rw.Write([]byte("oh no!"))

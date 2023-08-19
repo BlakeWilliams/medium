@@ -12,7 +12,7 @@ import (
 )
 
 func TestHappyPath(t *testing.T) {
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
 	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		rw.Header().Add("x-from-middleware", "wow")
@@ -26,8 +26,8 @@ func TestHappyPath(t *testing.T) {
 		return res
 	})
 
-	router.Get("/hello/:name", func(ctx context.Context, c Request[NoData]) Response {
-		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
+	router.Get("/hello/:name", func(ctx context.Context, r Request[NoData]) Response {
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
@@ -50,7 +50,7 @@ func TestGroup_RouteMethods(t *testing.T) {
 		"Patch":  {method: http.MethodPatch},
 		"Delete": {method: http.MethodDelete},
 	}
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
 	for name, tc := range testCases {
 		path := reflect.ValueOf("/")
@@ -78,10 +78,10 @@ func TestGroup_RouteMethods(t *testing.T) {
 }
 
 func TestRouter_Post(t *testing.T) {
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
-	router.Post("/hello/:name", func(ctx context.Context, c Request[NoData]) Response {
-		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
+	router.Post("/hello/:name", func(ctx context.Context, r Request[NoData]) Response {
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/hello/Fox%20Mulder", nil)
@@ -93,7 +93,7 @@ func TestRouter_Post(t *testing.T) {
 }
 
 func TestRouter_MissingRoute_NoHandler(t *testing.T) {
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
 	req := httptest.NewRequest(http.MethodGet, "/where/do/i/go", nil)
 	rw := httptest.NewRecorder()
@@ -105,7 +105,7 @@ func TestRouter_MissingRoute_NoHandler(t *testing.T) {
 }
 
 func TestRouter_MissingRoute_WithHandler(t *testing.T) {
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
 	router.Missing(func(ctx context.Context, r Request[NoData]) Response {
 		return StringResponse(http.StatusNotFound, "Sorry, can't find that page.")
@@ -130,8 +130,8 @@ func TestCustomActionType(t *testing.T) {
 		next(rw, r)
 	})
 
-	router.Get("/hello/:name", func(ctx context.Context, c Request[*MyData]) Response {
-		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s, data %d", c.Params()["name"], c.Data.Value))
+	router.Get("/hello/:name", func(ctx context.Context, r Request[*MyData]) Response {
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s, data %d", r.Params()["name"], r.Data.Value))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
@@ -160,7 +160,7 @@ func (mrw *myResponseWriter) Write(b []byte) (int, error) {
 func TestCustomResponseWriter(t *testing.T) {
 	mrwCalled := false
 
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		mrw := &myResponseWriter{orw: rw, onWrite: func() { mrwCalled = true }}
 		next(mrw, r)
@@ -182,7 +182,7 @@ func TestCustomResponseWriter(t *testing.T) {
 }
 
 func TestCustomResponse(t *testing.T) {
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		ctx := context.WithValue(r.Context(), "foo", "bar")
 		next(rw, r.WithContext(ctx))
@@ -204,7 +204,7 @@ func TestCustomResponse(t *testing.T) {
 }
 
 func TestWritesHeaders(t *testing.T) {
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 	router.Get("/", func(ctx context.Context, ba Request[NoData]) Response {
 		var res ResponseBuilder
 
@@ -224,7 +224,7 @@ func TestWritesHeaders(t *testing.T) {
 }
 
 func TestBefore_EarlyExit(t *testing.T) {
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
 	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		rw.Header().Add("x-from-middleware", "wow")
@@ -244,9 +244,9 @@ func TestBefore_EarlyExit(t *testing.T) {
 	})
 
 	routeCalled := false
-	router.Get("/hello/:name", func(ctx context.Context, c Request[NoData]) Response {
+	router.Get("/hello/:name", func(ctx context.Context, r Request[NoData]) Response {
 		routeCalled = true
-		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
@@ -269,8 +269,8 @@ func TestBefore_DifferentDataType(t *testing.T) {
 		return GenericBefore(ctx, req, next)
 	})
 
-	router.Get("/hello/:name", func(ctx context.Context, c Request[*MyData]) Response {
-		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
+	router.Get("/hello/:name", func(ctx context.Context, r Request[*MyData]) Response {
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
@@ -280,7 +280,7 @@ func TestBefore_DifferentDataType(t *testing.T) {
 }
 
 func TestBefore_Context(t *testing.T) {
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
 	router.Before(func(ctx context.Context, req Request[NoData], next Next) Response {
 		ctx = context.WithValue(ctx, "first", "bar")
@@ -294,10 +294,10 @@ func TestBefore_Context(t *testing.T) {
 
 	called := false
 	var handlerCtx context.Context
-	router.Get("/hello/:name", func(ctx context.Context, c Request[NoData]) Response {
+	router.Get("/hello/:name", func(ctx context.Context, r Request[NoData]) Response {
 		handlerCtx = ctx
 		called = true
-		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)

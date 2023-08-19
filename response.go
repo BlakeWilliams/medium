@@ -7,6 +7,15 @@ import (
 	"strings"
 )
 
+// NoData is a placeholder type for the default action creator.
+type NoData = struct{}
+
+// WithNoData is a convenience function for creating a NoData type for use with
+// groups and routers.
+func WithNoData(rootRequest RootRequest) NoData {
+	return NoData{}
+}
+
 // ResponseWriter is an interface that represents the response that will be sent to the
 // client.
 //
@@ -44,6 +53,17 @@ func StringResponse(status int, body string) Response {
 // OK returns a response with a 200 status code and a body of "OK".
 func OK() Response {
 	return StringResponse(http.StatusOK, "OK")
+}
+
+// Redirect returns an HTTP response to redirect the client to the provided URL.
+func Redirect(to string) Response {
+	return basicResponse{
+		status: http.StatusFound,
+		header: http.Header{
+			"Location": []string{to},
+		},
+		body: strings.NewReader("redirecting to " + to),
+	}
 }
 
 type ResponseBuilder struct {

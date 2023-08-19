@@ -11,7 +11,7 @@ import (
 )
 
 func TestSentViewer_Index(t *testing.T) {
-	r := medium.New(medium.DefaultActionCreator)
+	r := medium.New(medium.WithNoData)
 	mailer := New(&FakeDeliverer{}, sentRenderer(t))
 	mailer.DevMode = true
 	mailer.From = "noreply@bar.net"
@@ -45,7 +45,7 @@ func TestSentViewer_Index(t *testing.T) {
 }
 
 func TestSentViewer_Show(t *testing.T) {
-	r := medium.New(medium.DefaultActionCreator)
+	r := medium.New(medium.WithNoData)
 
 	renderer := bat.NewEngine(bat.HTMLEscape)
 	err := renderer.Register("index", "welcome!")
@@ -79,7 +79,7 @@ func TestSentViewer_Show(t *testing.T) {
 }
 
 func TestSentViewer_Body(t *testing.T) {
-	r := medium.New(medium.DefaultActionCreator)
+	r := medium.New(medium.WithNoData)
 	mailer := New(&FakeDeliverer{}, sentRenderer(t))
 	mailer.DevMode = true
 	mailer.From = "noreply@bar.net"

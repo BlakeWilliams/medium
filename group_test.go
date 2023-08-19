@@ -11,11 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type groupAction struct {
-	value int
-	*BaseAction
-}
-
 type MyData struct {
 	Value int
 }
@@ -30,7 +25,7 @@ func TestGroup_Routes(t *testing.T) {
 		"Patch":  {method: http.MethodPatch},
 		"Delete": {method: http.MethodDelete},
 	}
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
 	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		next(rw, r)
@@ -59,7 +54,7 @@ func TestGroup_Routes(t *testing.T) {
 }
 
 func TestGroup(t *testing.T) {
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
 	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		rw.Header().Add("x-from-middleware", "wow")
@@ -83,7 +78,7 @@ func TestGroup(t *testing.T) {
 }
 
 func TestGroup_Subgroup(t *testing.T) {
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
 	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		rw.Header().Add("x-from-middleware", "wow")
@@ -114,7 +109,7 @@ func TestGroup_Subgroup(t *testing.T) {
 }
 
 func TestGroup_Subrouter(t *testing.T) {
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
 	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		rw.Header().Add("x-from-middleware", "wow")

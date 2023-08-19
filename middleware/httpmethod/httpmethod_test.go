@@ -11,7 +11,7 @@ import (
 )
 
 func TestRewrite(t *testing.T) {
-	r := medium.New(medium.DefaultActionCreator)
+	r := medium.New(medium.WithNoData)
 
 	r.Use(RewriteMiddleware)
 	r.Delete("/", func(ctx context.Context, r medium.Request[medium.NoData]) medium.Response { return medium.OK() })
@@ -25,7 +25,7 @@ func TestRewrite(t *testing.T) {
 }
 
 func Test_RewritePost(t *testing.T) {
-	r := medium.New(medium.DefaultActionCreator)
+	r := medium.New(medium.WithNoData)
 
 	r.Use(RewriteMiddleware)
 	r.Delete("/", func(ctx context.Context, ac medium.Request[medium.NoData]) medium.Response { return medium.OK() })

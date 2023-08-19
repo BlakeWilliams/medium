@@ -10,8 +10,8 @@ type dispatchable[T any] interface {
 	dispatch(r RootRequest) (bool, map[string]string, func(context.Context, Request[T]) Response)
 }
 
-var _ dispatchable[Action] = (*Router[Action])(nil)
-var _ dispatchable[Action] = (*Group[Action, Action])(nil)
+var _ dispatchable[NoData] = (*Router[NoData])(nil)
+var _ dispatchable[NoData] = (*Group[NoData, NoData])(nil)
 
 // Middleware is a function that is called before the action is executed.
 // See Router.Use for more information.
@@ -197,7 +197,7 @@ func (r *Router[T]) Use(middleware Middleware) {
 	r.middlewares = append(r.middlewares, middleware)
 }
 
-var _ registerable[Action] = (*Router[Action])(nil)
+var _ registerable[NoData] = (*Router[NoData])(nil)
 
 func (r *Router[T]) register(group dispatchable[T]) {
 	r.groups = append(r.groups, group)
