@@ -136,25 +136,30 @@ func TestCustomActionType(t *testing.T) {
 }
 
 type myResponseWriter struct {
-	orw http.ResponseWriter
+	orw     http.ResponseWriter
+	onWrite func()
 }
 
 var _ http.ResponseWriter = (*myResponseWriter)(nil)
 
-func (mrw *myResponseWriter) Header() http.Header         { return mrw.orw.Header() }
-func (mrw *myResponseWriter) WriteHeader(s int)           { mrw.orw.WriteHeader(s) }
-func (mrw *myResponseWriter) Write(b []byte) (int, error) { return mrw.orw.Write(b) }
+func (mrw *myResponseWriter) Header() http.Header { return mrw.orw.Header() }
+func (mrw *myResponseWriter) WriteHeader(s int)   { mrw.orw.WriteHeader(s) }
+func (mrw *myResponseWriter) Write(b []byte) (int, error) {
+	mrw.onWrite()
+	return mrw.orw.Write(b)
+}
 
 func TestCustomResponseWriter(t *testing.T) {
+	mrwCalled := false
+
 	router := New(DefaultActionCreator)
 	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-		mrw := &myResponseWriter{orw: rw}
+		mrw := &myResponseWriter{orw: rw, onWrite: func() { mrwCalled = true }}
 		next(mrw, r)
 	})
 
 	called := false
 	router.Get("/", func(ba Request[NoData]) Response {
-		require.IsType(t, &myResponseWriter{}, ba.Response().Writer())
 		called = true
 
 		return OK()
@@ -165,6 +170,7 @@ func TestCustomResponseWriter(t *testing.T) {
 	router.ServeHTTP(rw, req)
 
 	require.True(t, called)
+	require.True(t, mrwCalled)
 }
 
 func TestCustomResponse(t *testing.T) {

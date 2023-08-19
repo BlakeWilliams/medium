@@ -47,7 +47,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var handler http.HandlerFunc
 
 	handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		rootRequest := RootRequest{originalRequest: r, response: &response{responseWriter: rw}}
+		rootRequest := RootRequest{originalRequest: r}
 		ok, params, routeHandler := router.dispatch(rootRequest)
 
 		var mediumHandler func() Response

@@ -93,7 +93,7 @@ func TestRouteMatching(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			req := httptest.NewRequest(tc.reqMethod, tc.reqPath, nil)
-			root := RootRequest{originalRequest: req, response: response{responseWriter: httptest.NewRecorder()}}
+			root := RootRequest{originalRequest: req}
 			route := newRoute(tc.routeMethod, tc.routePath, func(Request[NoData]) Response {
 				return OK()
 			})
