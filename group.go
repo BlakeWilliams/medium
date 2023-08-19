@@ -7,8 +7,8 @@ import (
 
 // registerable represents a type that can be registered on a router or a group
 // to create subgroups/subrouters.
-type registerable[T any] interface {
-	register(dispatchable[T])
+type registerable[Data any] interface {
+	register(dispatchable[Data])
 	prefix() string
 }
 
@@ -63,7 +63,7 @@ func NewGroup[ParentData any, Data any, Parent registerable[ParentData]](parent 
 
 // Match defines a new Route that responds to requests that match the given
 // method and path.
-func (g *Group[P, T]) Match(method string, path string, handler HandlerFunc[T]) {
+func (g *Group[ParentData, Data]) Match(method string, path string, handler HandlerFunc[Data]) {
 	if path == "/" {
 		path = g.routePrefix
 	} else {
@@ -78,27 +78,27 @@ func (g *Group[P, T]) Match(method string, path string, handler HandlerFunc[T]) 
 }
 
 // Defines a new Route that responds to GET requests.
-func (g *Group[P, T]) Get(path string, handler HandlerFunc[T]) {
+func (g *Group[ParentData, Data]) Get(path string, handler HandlerFunc[Data]) {
 	g.Match(http.MethodGet, path, handler)
 }
 
 // Defines a new Route that responds to POST requests.
-func (g *Group[P, T]) Post(path string, handler HandlerFunc[T]) {
+func (g *Group[ParentData, Data]) Post(path string, handler HandlerFunc[Data]) {
 	g.Match(http.MethodPost, path, handler)
 }
 
 // Defines a new Route that responds to PUT requests.
-func (t *Group[P, T]) Put(path string, handler HandlerFunc[T]) {
+func (t *Group[ParentData, Data]) Put(path string, handler HandlerFunc[Data]) {
 	t.Match(http.MethodPut, path, handler)
 }
 
 // Defines a new Route that responds to PATCH requests.
-func (g *Group[P, T]) Patch(path string, handler HandlerFunc[T]) {
+func (g *Group[ParentData, Data]) Patch(path string, handler HandlerFunc[Data]) {
 	g.Match(http.MethodPatch, path, handler)
 }
 
 // Defines a new Route that responds to DELETE requests.
-func (g *Group[P, T]) Delete(path string, handler HandlerFunc[T]) {
+func (g *Group[ParentData, Data]) Delete(path string, handler HandlerFunc[Data]) {
 	g.Match(http.MethodDelete, path, handler)
 }
 
@@ -135,13 +135,13 @@ func (g *Group[ParentData, Data]) routeFor(req RootRequest) (*Route[Data], map[s
 
 // register implements the registerable interface and allows subgroups to be
 // registered and routed to.
-func (g *Group[P, T]) register(subgroup dispatchable[T]) {
+func (g *Group[ParentData, Data]) register(subgroup dispatchable[Data]) {
 	g.subgroups = append(g.subgroups, subgroup)
 }
 
 // prefix implements the registerable interface and allows subgroups to register
 // routes with the correct path.
-func (g *Group[P, T]) prefix() string {
+func (g *Group[ParentData, Data]) prefix() string {
 	return g.routePrefix
 }
 
