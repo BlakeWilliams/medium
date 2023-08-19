@@ -27,6 +27,7 @@ func TestHappyPath(t *testing.T) {
 	})
 
 	router.Get("/hello/:name", func(ctx context.Context, r Request[NoData]) Response {
+		require.Equal(t, "/hello/:name", r.MatchedPath())
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 

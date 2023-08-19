@@ -112,19 +112,23 @@ func (g *RouteGroup[ParentData, Data]) Delete(path string, handler HandlerFunc[D
 }
 
 // Implements Dispatchable so groups can be registered on routers
-func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, map[string]string, func(context.Context, Request[ParentData]) Response) {
+func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, *RouteData, func(context.Context, Request[ParentData]) Response) {
 	if route, params := g.routeFor(rootRequest); route != nil {
-		return true, params, func(ctx context.Context, req Request[ParentData]) Response {
+		routeData := &RouteData{Params: params, HandlerPath: route.Raw}
+
+		return true, routeData, func(ctx context.Context, req Request[ParentData]) Response {
 			data := g.actionCreator(req.Data)
-			return route.handler(ctx, Request[Data]{root: rootRequest, routeParams: params, Data: data})
+			newReq := NewRequest(rootRequest, data, routeData)
+			return route.handler(ctx, newReq)
 		}
 	}
 
 	for _, group := range g.subgroups {
-		if ok, params, handler := group.dispatch(rootRequest); ok {
-			return true, params, func(ctx context.Context, req Request[ParentData]) Response {
+		if ok, routeData, handler := group.dispatch(rootRequest); ok {
+			return true, routeData, func(ctx context.Context, req Request[ParentData]) Response {
 				data := g.actionCreator(req.Data)
-				return handler(ctx, Request[Data]{root: rootRequest, routeParams: params, Data: data})
+				newReq := NewRequest(rootRequest, data, routeData)
+				return handler(ctx, newReq)
 			}
 		}
 	}

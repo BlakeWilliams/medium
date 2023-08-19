@@ -7,7 +7,7 @@ import (
 )
 
 type dispatchable[T any] interface {
-	dispatch(r RootRequest) (bool, map[string]string, func(context.Context, Request[T]) Response)
+	dispatch(r RootRequest) (bool, *RouteData, func(context.Context, Request[T]) Response)
 }
 
 var _ dispatchable[NoData] = (*Router[NoData])(nil)
@@ -56,7 +56,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rootRequest := RootRequest{originalRequest: r}
-		ok, params, routeHandler := router.dispatch(rootRequest)
+		ok, routeData, routeHandler := router.dispatch(rootRequest)
 
 		var mediumHandler func(context.Context) Response
 
@@ -67,17 +67,20 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 					return StringResponse(http.StatusNotFound, "404 not found")
 				}
 
+				newReq := NewRequest(rootRequest, data, routeData)
 				return router.missingRoute(
 					ctx,
-					Request[T]{root: rootRequest, routeParams: params, Data: data},
+					newReq,
 				)
 			}
 		} else {
 			mediumHandler = func(ctx context.Context) Response {
 				data := router.dataCreator(rootRequest)
+
+				newReq := NewRequest(rootRequest, data, routeData)
 				return routeHandler(
 					ctx,
-					Request[T]{root: rootRequest, routeParams: params, Data: data},
+					newReq,
 				)
 			}
 
@@ -87,9 +90,12 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				nextHandler := mediumHandler
 
 				mediumHandler = func(ctx context.Context) Response {
+					data := router.dataCreator(rootRequest)
+					newReq := NewRequest(rootRequest, data, routeData)
+
 					return before(
 						ctx,
-						Request[T]{root: rootRequest, routeParams: params, Data: router.dataCreator(rootRequest)},
+						newReq,
 						nextHandler,
 					)
 				}
@@ -124,24 +130,26 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	handler.ServeHTTP(rw, r)
 }
 
-func (router *Router[T]) dispatch(r RootRequest) (bool, map[string]string, func(context.Context, Request[T]) Response) {
-	if route, params := router.routeFor(r); route != nil {
-		return true, params, route.handler
+func (router *Router[T]) dispatch(r RootRequest) (bool, *RouteData, func(context.Context, Request[T]) Response) {
+	if route, routeData := router.routeFor(r); route != nil {
+		return true, routeData, route.handler
 	}
 
 	for _, group := range router.groups {
-		if ok, params, handler := group.dispatch(r); ok {
-			return true, params, handler
+		if ok, routeData, handler := group.dispatch(r); ok {
+			return true, routeData, handler
 		}
 	}
 
 	return false, nil, nil
 }
 
-func (router *Router[T]) routeFor(r RootRequest) (*Route[T], map[string]string) {
+func (router *Router[T]) routeFor(r RootRequest) (*Route[T], *RouteData) {
 	for _, route := range router.routes {
 		if ok, params := route.IsMatch(r); ok {
-			return route, params
+			routeData := &RouteData{Params: params, HandlerPath: route.Raw}
+
+			return route, routeData
 		}
 	}
 
