@@ -11,7 +11,7 @@ type dispatchable[T any] interface {
 }
 
 var _ dispatchable[NoData] = (*Router[NoData])(nil)
-var _ dispatchable[NoData] = (*Group[NoData, NoData])(nil)
+var _ dispatchable[NoData] = (*RouteGroup[NoData, NoData])(nil)
 
 // Middleware is a function that is called before the action is executed.
 // See Router.Use for more information.

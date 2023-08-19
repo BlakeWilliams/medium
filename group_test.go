@@ -31,7 +31,7 @@ func TestGroup_Routes(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := NewGroup(router, func(og NoData) MyData {
+	group := Group(router, func(og NoData) MyData {
 		return MyData{Value: 1}
 	})
 
@@ -61,7 +61,7 @@ func TestGroup(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := NewGroup(router, func(_ NoData) MyData {
+	group := Group(router, func(_ NoData) MyData {
 		return MyData{Value: 1}
 	})
 	group.Get("/hello/:name", func(ctx context.Context, r Request[MyData]) Response {
@@ -85,11 +85,11 @@ func TestGroup_Subgroup(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := NewGroup[NoData, MyData, registerable[NoData]](router, func(data NoData) MyData {
+	group := Group[NoData, MyData, registerable[NoData]](router, func(data NoData) MyData {
 		return MyData{Value: 1}
 	})
 
-	subgroup := NewGroup(group, func(data MyData) MyData {
+	subgroup := Group(group, func(data MyData) MyData {
 		data.Value += 1
 		return data
 	})
@@ -116,11 +116,11 @@ func TestGroup_Subrouter(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := Subrouter(router, "/foo", func(_ NoData) MyData {
+	group := SubRouter(router, "/foo", func(_ NoData) MyData {
 		return MyData{Value: 1}
 	})
 
-	subgroup := Subrouter(group, "/bar", func(data MyData) MyData {
+	subgroup := SubRouter(group, "/bar", func(data MyData) MyData {
 		data.Value += 1
 		return data
 	})
@@ -130,7 +130,7 @@ func TestGroup_Subrouter(t *testing.T) {
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
-	subsubgroup := Subrouter(subgroup, "/baz", func(data MyData) MyData {
+	subsubgroup := SubRouter(subgroup, "/baz", func(data MyData) MyData {
 		data.Value += 1
 		return data
 	})

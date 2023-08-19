@@ -6,6 +6,14 @@ import (
 	"regexp"
 )
 
+// WithNoData is a helper function that can be used to create a router that
+// doesn't require any new data to be created.
+func WithExistingData[T any](data T) func() T {
+	return func() T {
+		return data
+	}
+}
+
 // registerable represents a type that can be registered on a router or a group
 // to create subgroups/subrouters.
 type registerable[Data any] interface {
@@ -13,16 +21,16 @@ type registerable[Data any] interface {
 	prefix() string
 }
 
-// Group represents a collection of routes that share a common set of
+// RouteGroup represents a collection of routes that share a common set of
 // Around/Before/After callbacks and Action type (T)
-type Group[ParentData any, Data any] struct {
+type RouteGroup[ParentData any, Data any] struct {
 	routes        []*Route[Data]
 	actionCreator func(ParentData) Data
 	subgroups     []dispatchable[Data]
 	routePrefix   string
 }
 
-// Subrouter creates a new grouping of routes that will be routed to in addition
+// SubRouter creates a new grouping of routes that will be routed to in addition
 // to the routes defined on the primery router. These routes will be prefixed
 // using the given prefix.
 //
@@ -42,8 +50,8 @@ type Group[ParentData any, Data any] struct {
 //	|-Group[LoggedInAction, Admin]
 //	  |
 //	  |_ Group[Admin, SuperAdmin]
-func Subrouter[ParentData any, Data any, Parent registerable[ParentData]](parent Parent, prefix string, creator func(ParentData) Data) *Group[ParentData, Data] {
-	group := NewGroup(parent, creator)
+func SubRouter[ParentData any, Data any, Parent registerable[ParentData]](parent Parent, prefix string, creator func(ParentData) Data) *RouteGroup[ParentData, Data] {
+	group := Group(parent, creator)
 	group.routePrefix = parent.prefix() + prefix
 
 	return group
@@ -54,8 +62,8 @@ func Subrouter[ParentData any, Data any, Parent registerable[ParentData]](parent
 //
 // An action creator function is passed to the NewGroup, so that it can reference
 // fields from the parent action type.
-func NewGroup[ParentData any, Data any, Parent registerable[ParentData]](parent Parent, creator func(ParentData) Data) *Group[ParentData, Data] {
-	group := &Group[ParentData, Data]{routes: make([]*Route[Data], 0), actionCreator: creator}
+func Group[ParentData any, Data any, Parent registerable[ParentData]](parent Parent, creator func(ParentData) Data) *RouteGroup[ParentData, Data] {
+	group := &RouteGroup[ParentData, Data]{routes: make([]*Route[Data], 0), actionCreator: creator}
 	group.routePrefix = parent.prefix()
 	parent.register(group)
 
@@ -64,7 +72,7 @@ func NewGroup[ParentData any, Data any, Parent registerable[ParentData]](parent 
 
 // Match defines a new Route that responds to requests that match the given
 // method and path.
-func (g *Group[ParentData, Data]) Match(method string, path string, handler HandlerFunc[Data]) {
+func (g *RouteGroup[ParentData, Data]) Match(method string, path string, handler HandlerFunc[Data]) {
 	if path == "/" {
 		path = g.routePrefix
 	} else {
@@ -79,32 +87,32 @@ func (g *Group[ParentData, Data]) Match(method string, path string, handler Hand
 }
 
 // Defines a new Route that responds to GET requests.
-func (g *Group[ParentData, Data]) Get(path string, handler HandlerFunc[Data]) {
+func (g *RouteGroup[ParentData, Data]) Get(path string, handler HandlerFunc[Data]) {
 	g.Match(http.MethodGet, path, handler)
 }
 
 // Defines a new Route that responds to POST requests.
-func (g *Group[ParentData, Data]) Post(path string, handler HandlerFunc[Data]) {
+func (g *RouteGroup[ParentData, Data]) Post(path string, handler HandlerFunc[Data]) {
 	g.Match(http.MethodPost, path, handler)
 }
 
 // Defines a new Route that responds to PUT requests.
-func (t *Group[ParentData, Data]) Put(path string, handler HandlerFunc[Data]) {
+func (t *RouteGroup[ParentData, Data]) Put(path string, handler HandlerFunc[Data]) {
 	t.Match(http.MethodPut, path, handler)
 }
 
 // Defines a new Route that responds to PATCH requests.
-func (g *Group[ParentData, Data]) Patch(path string, handler HandlerFunc[Data]) {
+func (g *RouteGroup[ParentData, Data]) Patch(path string, handler HandlerFunc[Data]) {
 	g.Match(http.MethodPatch, path, handler)
 }
 
 // Defines a new Route that responds to DELETE requests.
-func (g *Group[ParentData, Data]) Delete(path string, handler HandlerFunc[Data]) {
+func (g *RouteGroup[ParentData, Data]) Delete(path string, handler HandlerFunc[Data]) {
 	g.Match(http.MethodDelete, path, handler)
 }
 
 // Implements Dispatchable so groups can be registered on routers
-func (g *Group[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, map[string]string, func(context.Context, Request[ParentData]) Response) {
+func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, map[string]string, func(context.Context, Request[ParentData]) Response) {
 	if route, params := g.routeFor(rootRequest); route != nil {
 		return true, params, func(ctx context.Context, req Request[ParentData]) Response {
 			data := g.actionCreator(req.Data)
@@ -124,7 +132,7 @@ func (g *Group[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, map[s
 	return false, nil, nil
 }
 
-func (g *Group[ParentData, Data]) routeFor(req RootRequest) (*Route[Data], map[string]string) {
+func (g *RouteGroup[ParentData, Data]) routeFor(req RootRequest) (*Route[Data], map[string]string) {
 	for _, route := range g.routes {
 		if ok, params := route.IsMatch(req); ok {
 			return route, params
@@ -136,13 +144,13 @@ func (g *Group[ParentData, Data]) routeFor(req RootRequest) (*Route[Data], map[s
 
 // register implements the registerable interface and allows subgroups to be
 // registered and routed to.
-func (g *Group[ParentData, Data]) register(subgroup dispatchable[Data]) {
+func (g *RouteGroup[ParentData, Data]) register(subgroup dispatchable[Data]) {
 	g.subgroups = append(g.subgroups, subgroup)
 }
 
 // prefix implements the registerable interface and allows subgroups to register
 // routes with the correct path.
-func (g *Group[ParentData, Data]) prefix() string {
+func (g *RouteGroup[ParentData, Data]) prefix() string {
 	return g.routePrefix
 }
 
