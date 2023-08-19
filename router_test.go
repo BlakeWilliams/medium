@@ -19,14 +19,14 @@ func TestHappyPath(t *testing.T) {
 		next(rw, r)
 	})
 
-	router.Before(func(req Request[NoData], next Next) Response {
-		res := next()
+	router.Before(func(ctx context.Context, req Request[NoData], next Next) Response {
+		res := next(ctx)
 		res.Header().Add("x-from-before", "amazing")
 
 		return res
 	})
 
-	router.Get("/hello/:name", func(c Request[NoData]) Response {
+	router.Get("/hello/:name", func(ctx context.Context, c Request[NoData]) Response {
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
 	})
 
@@ -54,7 +54,7 @@ func TestGroup_RouteMethods(t *testing.T) {
 
 	for name, tc := range testCases {
 		path := reflect.ValueOf("/")
-		var handler HandlerFunc[NoData] = func(r Request[NoData]) Response {
+		var handler HandlerFunc[NoData] = func(ctx context.Context, r Request[NoData]) Response {
 			var res ResponseBuilder
 
 			res.Status(http.StatusOK)
@@ -80,7 +80,7 @@ func TestGroup_RouteMethods(t *testing.T) {
 func TestRouter_Post(t *testing.T) {
 	router := New(DefaultActionCreator)
 
-	router.Post("/hello/:name", func(c Request[NoData]) Response {
+	router.Post("/hello/:name", func(ctx context.Context, c Request[NoData]) Response {
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
 	})
 
@@ -107,7 +107,7 @@ func TestRouter_MissingRoute_NoHandler(t *testing.T) {
 func TestRouter_MissingRoute_WithHandler(t *testing.T) {
 	router := New(DefaultActionCreator)
 
-	router.Missing(func(c Request[NoData]) Response {
+	router.Missing(func(ctx context.Context, r Request[NoData]) Response {
 		return StringResponse(http.StatusNotFound, "Sorry, can't find that page.")
 	})
 
@@ -130,7 +130,7 @@ func TestCustomActionType(t *testing.T) {
 		next(rw, r)
 	})
 
-	router.Get("/hello/:name", func(c Request[*MyData]) Response {
+	router.Get("/hello/:name", func(ctx context.Context, c Request[*MyData]) Response {
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s, data %d", c.Params()["name"], c.Data.Value))
 	})
 
@@ -167,7 +167,7 @@ func TestCustomResponseWriter(t *testing.T) {
 	})
 
 	called := false
-	router.Get("/", func(ba Request[NoData]) Response {
+	router.Get("/", func(ctx context.Context, ba Request[NoData]) Response {
 		called = true
 
 		return OK()
@@ -189,7 +189,7 @@ func TestCustomResponse(t *testing.T) {
 	})
 
 	called := false
-	router.Get("/", func(ba Request[NoData]) Response {
+	router.Get("/", func(ctx context.Context, ba Request[NoData]) Response {
 		require.Equal(t, "bar", ba.Request().Context().Value("foo"))
 		called = true
 
@@ -205,7 +205,7 @@ func TestCustomResponse(t *testing.T) {
 
 func TestWritesHeaders(t *testing.T) {
 	router := New(DefaultActionCreator)
-	router.Get("/", func(ba Request[NoData]) Response {
+	router.Get("/", func(ctx context.Context, ba Request[NoData]) Response {
 		var res ResponseBuilder
 
 		res.Status(http.StatusOK)
@@ -232,19 +232,19 @@ func TestBefore_EarlyExit(t *testing.T) {
 	})
 
 	firstBeforeCalled := false
-	router.Before(func(req Request[NoData], next Next) Response {
+	router.Before(func(ctx context.Context, req Request[NoData], next Next) Response {
 		firstBeforeCalled = true
 		return StringResponse(http.StatusNotFound, "not found")
 	})
 
 	secondBeforeCalled := false
-	router.Before(func(req Request[NoData], next Next) Response {
+	router.Before(func(ctx context.Context, req Request[NoData], next Next) Response {
 		secondBeforeCalled = true
-		return next()
+		return next(ctx)
 	})
 
 	routeCalled := false
-	router.Get("/hello/:name", func(c Request[NoData]) Response {
+	router.Get("/hello/:name", func(ctx context.Context, c Request[NoData]) Response {
 		routeCalled = true
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
 	})
@@ -265,11 +265,11 @@ func TestBefore_DifferentDataType(t *testing.T) {
 		return &MyData{Value: 1}
 	})
 
-	router.Before(func(req Request[*MyData], next Next) Response {
-		return GenericBefore(req, next)
+	router.Before(func(ctx context.Context, req Request[*MyData], next Next) Response {
+		return GenericBefore(ctx, req, next)
 	})
 
-	router.Get("/hello/:name", func(c Request[*MyData]) Response {
+	router.Get("/hello/:name", func(ctx context.Context, c Request[*MyData]) Response {
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
 	})
 
@@ -279,6 +279,38 @@ func TestBefore_DifferentDataType(t *testing.T) {
 	router.ServeHTTP(rw, req)
 }
 
-func GenericBefore[T any](req Request[T], next Next) Response {
-	return next()
+func TestBefore_Context(t *testing.T) {
+	router := New(DefaultActionCreator)
+
+	router.Before(func(ctx context.Context, req Request[NoData], next Next) Response {
+		ctx = context.WithValue(ctx, "first", "bar")
+		return GenericBefore(ctx, req, next)
+	})
+
+	router.Before(func(ctx context.Context, req Request[NoData], next Next) Response {
+		ctx = context.WithValue(ctx, "second", "baz")
+		return next(ctx)
+	})
+
+	called := false
+	var handlerCtx context.Context
+	router.Get("/hello/:name", func(ctx context.Context, c Request[NoData]) Response {
+		handlerCtx = ctx
+		called = true
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
+	rw := httptest.NewRecorder()
+
+	router.ServeHTTP(rw, req)
+
+	require.True(t, called)
+	require.NotNil(t, handlerCtx)
+	require.Equal(t, "bar", handlerCtx.Value("first"))
+	require.Equal(t, "baz", handlerCtx.Value("second"))
+}
+
+func GenericBefore[T any](ctx context.Context, req Request[T], next Next) Response {
+	return next(ctx)
 }

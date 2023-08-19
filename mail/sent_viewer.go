@@ -2,6 +2,7 @@ package mail
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	_ "embed"
 	"strconv"
@@ -20,7 +21,7 @@ func RegisterSentMailViewer[T any](router *medium.Router[T], mailer *Mailer) {
 		panic(err)
 	}
 
-	router.Get("/_mailer", func(r medium.Request[T]) medium.Response {
+	router.Get("/_mailer", func(ctx context.Context, r medium.Request[T]) medium.Response {
 		data := map[string]interface{}{
 			"SentMail": mailer.SentMail,
 		}
@@ -37,7 +38,7 @@ func RegisterSentMailViewer[T any](router *medium.Router[T], mailer *Mailer) {
 		return res.Response()
 	})
 
-	router.Get("/_mailer/sent/:index", func(r medium.Request[T]) medium.Response {
+	router.Get("/_mailer/sent/:index", func(ctx context.Context, r medium.Request[T]) medium.Response {
 		strIndex := r.Params()["index"]
 		index, err := strconv.Atoi(strIndex)
 
@@ -64,7 +65,7 @@ func RegisterSentMailViewer[T any](router *medium.Router[T], mailer *Mailer) {
 		return res.Response()
 	})
 
-	router.Get("/_mailer/sent/:index/content/:contentIndex/body", func(r medium.Request[T]) medium.Response {
+	router.Get("/_mailer/sent/:index/content/:contentIndex/body", func(ctx context.Context, r medium.Request[T]) medium.Response {
 		strIndex := r.Params()["index"]
 		index, err := strconv.Atoi(strIndex)
 		if err != nil {

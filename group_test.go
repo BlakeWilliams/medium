@@ -1,6 +1,7 @@
 package medium
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -41,7 +42,7 @@ func TestGroup_Routes(t *testing.T) {
 
 	for name, tc := range testCases {
 		path := reflect.ValueOf("/")
-		handler := reflect.ValueOf(func(r Request[MyData]) Response {
+		handler := reflect.ValueOf(func(ctx context.Context, r Request[MyData]) Response {
 			return StringResponse(http.StatusOK, "hello")
 		})
 
@@ -68,7 +69,7 @@ func TestGroup(t *testing.T) {
 	group := NewGroup(router, func(_ NoData) MyData {
 		return MyData{Value: 1}
 	})
-	group.Get("/hello/:name", func(r Request[MyData]) Response {
+	group.Get("/hello/:name", func(ctx context.Context, r Request[MyData]) Response {
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
@@ -98,7 +99,7 @@ func TestGroup_Subgroup(t *testing.T) {
 		return data
 	})
 
-	subgroup.Get("/hello/:name", func(c Request[MyData]) Response {
+	subgroup.Get("/hello/:name", func(ctx context.Context, c Request[MyData]) Response {
 		require.Equal(t, 2, c.Data.Value)
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
 	})
@@ -129,7 +130,7 @@ func TestGroup_Subrouter(t *testing.T) {
 		return data
 	})
 
-	subgroup.Get("/hello/:name", func(c Request[MyData]) Response {
+	subgroup.Get("/hello/:name", func(ctx context.Context, c Request[MyData]) Response {
 		require.Equal(t, 2, c.Data.Value)
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", c.Params()["name"]))
 	})
@@ -139,7 +140,7 @@ func TestGroup_Subrouter(t *testing.T) {
 		return data
 	})
 
-	subsubgroup.Get("/hello/:name", func(c Request[MyData]) Response {
+	subsubgroup.Get("/hello/:name", func(ctx context.Context, c Request[MyData]) Response {
 		require.Equal(t, 3, c.Data.Value)
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello again %s", c.Params()["name"]))
 	})

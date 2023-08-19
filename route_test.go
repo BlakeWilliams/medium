@@ -1,6 +1,7 @@
 package medium
 
 import (
+	"context"
 	"net/http/httptest"
 	"testing"
 
@@ -94,7 +95,7 @@ func TestRouteMatching(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			req := httptest.NewRequest(tc.reqMethod, tc.reqPath, nil)
 			root := RootRequest{originalRequest: req}
-			route := newRoute(tc.routeMethod, tc.routePath, func(Request[NoData]) Response {
+			route := newRoute(tc.routeMethod, tc.routePath, func(context.Context, Request[NoData]) Response {
 				return OK()
 			})
 

@@ -1,12 +1,13 @@
 package medium
 
 import (
+	"context"
 	"io"
 	"net/http"
 )
 
 type dispatchable[T any] interface {
-	dispatch(r RootRequest) (bool, map[string]string, func(Request[T]) Response)
+	dispatch(r RootRequest) (bool, map[string]string, func(context.Context, Request[T]) Response)
 }
 
 var _ dispatchable[Action] = (*Router[Action])(nil)
@@ -18,13 +19,13 @@ var _ dispatchable[Action] = (*Group[Action, Action])(nil)
 type Middleware func(http.ResponseWriter, *http.Request, http.HandlerFunc)
 
 // A function that handles a request.
-type HandlerFunc[T any] func(Request[T]) Response
+type HandlerFunc[T any] func(context.Context, Request[T]) Response
 
 // A function that calls the next BeforeFunc or HandlerFunc in the chain.
-type Next func() Response
+type Next func(ctx context.Context) Response
 
 // A function that is called before the action is executed.
-type BeforeFunc[T any] (func(req Request[T], next Next) Response)
+type BeforeFunc[T any] (func(ctx context.Context, req Request[T], next Next) Response)
 
 // Convenience type for middleware handlers
 // type MiddlewareFunc = HandlerFunc[Action]
@@ -57,12 +58,27 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		rootRequest := RootRequest{originalRequest: r}
 		ok, params, routeHandler := router.dispatch(rootRequest)
 
-		var mediumHandler func() Response
+		var mediumHandler func(context.Context) Response
 
-		if ok {
-			mediumHandler = func() Response {
+		if !ok {
+			mediumHandler = func(ctx context.Context) Response {
 				data := router.dataCreator(rootRequest)
-				return routeHandler(Request[T]{root: rootRequest, routeParams: params, Data: data})
+				if router.missingRoute == nil {
+					return StringResponse(http.StatusNotFound, "404 not found")
+				}
+
+				return router.missingRoute(
+					ctx,
+					Request[T]{root: rootRequest, routeParams: params, Data: data},
+				)
+			}
+		} else {
+			mediumHandler = func(ctx context.Context) Response {
+				data := router.dataCreator(rootRequest)
+				return routeHandler(
+					ctx,
+					Request[T]{root: rootRequest, routeParams: params, Data: data},
+				)
 			}
 
 			// Run before actions
@@ -70,22 +86,18 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				before := router.befores[i]
 				nextHandler := mediumHandler
 
-				mediumHandler = func() Response {
-					return before(Request[T]{root: rootRequest, routeParams: params, Data: router.dataCreator(rootRequest)}, nextHandler)
-				}
-			}
-		} else {
-			mediumHandler = func() Response {
-				data := router.dataCreator(rootRequest)
-				if router.missingRoute != nil {
-					return router.missingRoute(Request[T]{root: rootRequest, routeParams: params, Data: data})
-				} else {
-					return StringResponse(http.StatusNotFound, "404 not found")
+				mediumHandler = func(ctx context.Context) Response {
+					return before(
+						ctx,
+						Request[T]{root: rootRequest, routeParams: params, Data: router.dataCreator(rootRequest)},
+						nextHandler,
+					)
 				}
 			}
 		}
 
-		res := mediumHandler()
+		res := mediumHandler(r.Context())
+
 		for key, values := range res.Header() {
 			for _, value := range values {
 				rw.Header().Add(key, value)
@@ -112,7 +124,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	handler.ServeHTTP(rw, r)
 }
 
-func (router *Router[T]) dispatch(r RootRequest) (bool, map[string]string, func(Request[T]) Response) {
+func (router *Router[T]) dispatch(r RootRequest) (bool, map[string]string, func(context.Context, Request[T]) Response) {
 	if route, params := router.routeFor(r); route != nil {
 		return true, params, route.handler
 	}

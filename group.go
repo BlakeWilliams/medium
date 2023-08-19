@@ -1,6 +1,7 @@
 package medium
 
 import (
+	"context"
 	"net/http"
 	"regexp"
 )
@@ -103,19 +104,19 @@ func (g *Group[ParentData, Data]) Delete(path string, handler HandlerFunc[Data])
 }
 
 // Implements Dispatchable so groups can be registered on routers
-func (g *Group[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, map[string]string, func(Request[ParentData]) Response) {
+func (g *Group[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, map[string]string, func(context.Context, Request[ParentData]) Response) {
 	if route, params := g.routeFor(rootRequest); route != nil {
-		return true, params, func(req Request[ParentData]) Response {
+		return true, params, func(ctx context.Context, req Request[ParentData]) Response {
 			data := g.actionCreator(req.Data)
-			return route.handler(Request[Data]{root: rootRequest, routeParams: params, Data: data})
+			return route.handler(ctx, Request[Data]{root: rootRequest, routeParams: params, Data: data})
 		}
 	}
 
 	for _, group := range g.subgroups {
 		if ok, params, handler := group.dispatch(rootRequest); ok {
-			return true, params, func(req Request[ParentData]) Response {
+			return true, params, func(ctx context.Context, req Request[ParentData]) Response {
 				data := g.actionCreator(req.Data)
-				return handler(Request[Data]{root: rootRequest, routeParams: params, Data: data})
+				return handler(ctx, Request[Data]{root: rootRequest, routeParams: params, Data: data})
 			}
 		}
 	}
