@@ -1,7 +1,6 @@
 package medium
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 )
@@ -70,9 +69,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		res := mediumHandler()
-		fmt.Println(res)
 		for key, values := range res.Header() {
-			fmt.Println(key)
 			for _, value := range values {
 				rw.Header().Add(key, value)
 			}
