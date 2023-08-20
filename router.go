@@ -59,7 +59,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		ok, routeData, routeHandler := router.dispatch(rootRequest)
 
 		data := router.dataCreator(rootRequest)
-		newReq := NewRequest(rootRequest, data, routeData)
+		newReq := NewRequest(rootRequest.originalRequest, data, routeData)
 
 		var mediumHandler func(context.Context) Response
 

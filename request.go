@@ -9,20 +9,15 @@ import (
 // RootRequest is a wrapper around http.Request that contains the original Request
 // object and the response writer. This is used for the root router since there is
 // no application specific data to store.
-type RootRequest struct {
-	originalRequest *http.Request
-}
-
-// Request returns the original request.
-func (r RootRequest) Request() *http.Request { return r.originalRequest }
+type RootRequest = Request[NoData]
 
 // Request is a wrapper around http.Request that contains the original Request
 // object and the response writer. It also can contain application specific data
 // that is passed to the handlers.
 type Request[Data any] struct {
-	root      RootRequest
-	routeData *RouteData
-	Data      Data
+	originalRequest *http.Request
+	routeData       *RouteData
+	Data            Data
 }
 
 // RouteData holds data about the matched route.
@@ -33,12 +28,12 @@ type RouteData struct {
 	HandlerPath string
 }
 
-func NewRequest[Data any](root RootRequest, data Data, routeData *RouteData) *Request[Data] {
-	return &Request[Data]{root: root, routeData: routeData, Data: data}
+func NewRequest[Data any](originalRequest *http.Request, data Data, routeData *RouteData) *Request[Data] {
+	return &Request[Data]{originalRequest: originalRequest, routeData: routeData, Data: data}
 }
 
 // Request returns the original request.
-func (r Request[Data]) Request() *http.Request { return r.root.originalRequest }
+func (r Request[Data]) Request() *http.Request { return r.originalRequest }
 
 // Params returns the route parameters that were matched.
 func (r Request[Data]) Params() map[string]string { return r.routeData.Params }

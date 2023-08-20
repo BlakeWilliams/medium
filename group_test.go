@@ -31,7 +31,7 @@ func TestGroup_Routes(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := Group(router, func(og NoData) MyData {
+	group := Group(router, func(og *Request[NoData]) MyData {
 		return MyData{Value: 1}
 	})
 
@@ -61,7 +61,7 @@ func TestGroup(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := Group(router, func(_ NoData) MyData {
+	group := Group(router, func(_ *Request[NoData]) MyData {
 		return MyData{Value: 1}
 	})
 	group.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
@@ -85,13 +85,13 @@ func TestGroup_Subgroup(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := Group[NoData, MyData, registerable[NoData]](router, func(data NoData) MyData {
+	group := Group[NoData, MyData, registerable[NoData]](router, func(r *Request[NoData]) MyData {
 		return MyData{Value: 1}
 	})
 
-	subgroup := Group(group, func(data MyData) MyData {
-		data.Value += 1
-		return data
+	subgroup := Group(group, func(r *Request[MyData]) MyData {
+		r.Data.Value += 1
+		return r.Data
 	})
 
 	subgroup.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
@@ -116,13 +116,13 @@ func TestGroup_Subrouter(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := SubRouter(router, "/foo", func(_ NoData) MyData {
+	group := SubRouter(router, "/foo", func(_ *Request[NoData]) MyData {
 		return MyData{Value: 1}
 	})
 
-	subgroup := SubRouter(group, "/bar", func(data MyData) MyData {
-		data.Value += 1
-		return data
+	subgroup := SubRouter(group, "/bar", func(r *Request[MyData]) MyData {
+		r.Data.Value += 1
+		return r.Data
 	})
 
 	subgroup.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
@@ -130,9 +130,9 @@ func TestGroup_Subrouter(t *testing.T) {
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
-	subsubgroup := SubRouter(subgroup, "/baz", func(data MyData) MyData {
-		data.Value += 1
-		return data
+	subsubgroup := SubRouter(subgroup, "/baz", func(r *Request[MyData]) MyData {
+		r.Data.Value += 1
+		return r.Data
 	})
 
 	subsubgroup.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
@@ -165,7 +165,7 @@ func TestGroup_Before(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := Group(router, func(_ NoData) MyData {
+	group := Group(router, func(_ *Request[NoData]) MyData {
 		return MyData{Value: 1}
 	})
 
@@ -201,7 +201,7 @@ func TestGroup_Before_NestedGroup(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := Group(router, func(_ NoData) MyData {
+	group := Group(router, func(_ *Request[NoData]) MyData {
 		return MyData{Value: 1}
 	})
 
@@ -214,10 +214,10 @@ func TestGroup_Before_NestedGroup(t *testing.T) {
 		return next(ctx)
 	})
 
-	subgroup := Group(group, func(data MyData) MyData {
-		require.Equal(t, 2, data.Value)
-		data.Value += 1
-		return data
+	subgroup := Group(group, func(r *Request[MyData]) MyData {
+		require.Equal(t, 2, r.Data.Value)
+		r.Data.Value += 1
+		return r.Data
 	})
 	subgroup.Before(func(ctx context.Context, r *Request[MyData], next Next) Response {
 		require.Equal(t, 3, r.Data.Value)

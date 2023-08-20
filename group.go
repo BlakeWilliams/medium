@@ -16,11 +16,11 @@ type registerable[Data any] interface {
 // RouteGroup represents a collection of routes that share a common set of
 // Around/Before/After callbacks and Action type (T)
 type RouteGroup[ParentData any, Data any] struct {
-	routes        []*Route[Data]
-	actionCreator func(ParentData) Data
-	subgroups     []dispatchable[Data]
-	befores       []BeforeFunc[Data]
-	routePrefix   string
+	routes      []*Route[Data]
+	dataCreator func(*Request[ParentData]) Data
+	subgroups   []dispatchable[Data]
+	befores     []BeforeFunc[Data]
+	routePrefix string
 }
 
 // SubRouter creates a new grouping of routes that will be routed to in addition
@@ -43,7 +43,7 @@ type RouteGroup[ParentData any, Data any] struct {
 //	|-Group[LoggedInAction, Admin]
 //	  |
 //	  |_ Group[Admin, SuperAdmin]
-func SubRouter[ParentData any, Data any, Parent registerable[ParentData]](parent Parent, prefix string, creator func(ParentData) Data) *RouteGroup[ParentData, Data] {
+func SubRouter[ParentData any, Data any, Parent registerable[ParentData]](parent Parent, prefix string, creator func(*Request[ParentData]) Data) *RouteGroup[ParentData, Data] {
 	group := Group(parent, creator)
 	group.routePrefix = parent.prefix() + prefix
 
@@ -55,8 +55,8 @@ func SubRouter[ParentData any, Data any, Parent registerable[ParentData]](parent
 //
 // An action creator function is passed to the NewGroup, so that it can reference
 // fields from the parent action type.
-func Group[ParentData any, Data any, Parent registerable[ParentData]](parent Parent, creator func(ParentData) Data) *RouteGroup[ParentData, Data] {
-	group := &RouteGroup[ParentData, Data]{routes: make([]*Route[Data], 0), actionCreator: creator}
+func Group[ParentData any, Data any, Parent registerable[ParentData]](parent Parent, creator func(*Request[ParentData]) Data) *RouteGroup[ParentData, Data] {
+	group := &RouteGroup[ParentData, Data]{routes: make([]*Route[Data], 0), dataCreator: creator}
 	group.routePrefix = parent.prefix()
 	parent.register(group)
 
@@ -112,8 +112,8 @@ func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, 
 	}
 
 	return true, routeData, func(ctx context.Context, req *Request[ParentData]) Response {
-		data := g.actionCreator(req.Data)
-		newReq := NewRequest(rootRequest, data, routeData)
+		data := g.dataCreator(req)
+		newReq := NewRequest(rootRequest.originalRequest, data, routeData)
 
 		routeHandler := func(ctx context.Context, req *Request[Data]) Response { return handler(ctx, req) }
 
