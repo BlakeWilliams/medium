@@ -21,7 +21,7 @@ type Route[C any] struct {
 
 // Given a request, returns true if the route matches the request and false if
 // not.
-func (r *Route[C]) IsMatch(req RootRequest) (bool, map[string]string) {
+func (r *Route[C]) IsMatch(req *RootRequest) (bool, map[string]string) {
 	if r.Method != req.Request().Method {
 		return false, nil
 	}

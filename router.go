@@ -6,13 +6,6 @@ import (
 	"net/http"
 )
 
-type dispatchable[T any] interface {
-	dispatch(r RootRequest) (bool, *RouteData, func(context.Context, *Request[T]) Response)
-}
-
-var _ dispatchable[NoData] = (*Router[NoData])(nil)
-var _ dispatchable[NoData] = (*RouteGroup[NoData, NoData])(nil)
-
 // Middleware is a function that is called before the action is executed.
 // See Router.Use for more information.
 // type Middleware func(c Action, next HandlerFunc[Action])
@@ -33,21 +26,20 @@ type BeforeFunc[T any] (func(ctx context.Context, req *Request[T], next Next) Re
 // Router is a collection of Routes and is used to dispatch requests to the
 // correct Route handler.
 type Router[T any] struct {
-	routes      []*Route[T]
-	middlewares []Middleware
-	befores     []BeforeFunc[T]
-	dataCreator func(RootRequest) T
-	// Called when no route matches the request. Useful for rendering 404 pages.
+	middlewares  []Middleware
+	routeGroup   *RouteGroup[NoData, T]
 	missingRoute HandlerFunc[T]
-
-	groups []dispatchable[T]
+	dataCreator func(*RootRequest) T
 }
 
 // Creates a new Router with the given action creator used to create the application's root type.
-func New[T any](dataCreator func(RootRequest) T) *Router[T] {
+func New[T any](dataCreator func(*RootRequest) T) *Router[T] {
 	return &Router[T]{
 		dataCreator: dataCreator,
-		routes:      make([]*Route[T], 0),
+		routeGroup: &RouteGroup[NoData, T]{
+			routes:      make([]*Route[T], 0),
+			dataCreator: dataCreator,
+		},
 	}
 }
 
@@ -55,8 +47,8 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var handler http.HandlerFunc
 
 	handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		rootRequest := RootRequest{originalRequest: r}
-		ok, routeData, routeHandler := router.dispatch(rootRequest)
+		rootRequest := &RootRequest{originalRequest: r}
+		ok, routeData, routeHandler := router.routeGroup.dispatch(rootRequest)
 
 		data := router.dataCreator(rootRequest)
 		newReq := NewRequest(rootRequest.originalRequest, data, routeData)
@@ -76,25 +68,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			mediumHandler = func(ctx context.Context) Response {
-				return routeHandler(
-					ctx,
-					newReq,
-				)
-			}
-
-			// Run before actions
-			for i := len(router.befores) - 1; i >= 0; i-- {
-				before := router.befores[i]
-				nextHandler := mediumHandler
-
-				mediumHandler = func(ctx context.Context) Response {
-
-					return before(
-						ctx,
-						newReq,
-						nextHandler,
-					)
-				}
+				return routeHandler(ctx, rootRequest)
 			}
 		}
 
@@ -125,35 +99,9 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	handler.ServeHTTP(rw, r)
 }
 
-func (router *Router[T]) dispatch(r RootRequest) (bool, *RouteData, func(context.Context, *Request[T]) Response) {
-	if route, routeData := router.routeFor(r); route != nil {
-		return true, routeData, route.handler
-	}
-
-	for _, group := range router.groups {
-		if ok, routeData, handler := group.dispatch(r); ok {
-			return true, routeData, handler
-		}
-	}
-
-	return false, nil, nil
-}
-
-func (router *Router[T]) routeFor(r RootRequest) (*Route[T], *RouteData) {
-	for _, route := range router.routes {
-		if ok, params := route.IsMatch(r); ok {
-			routeData := &RouteData{Params: params, HandlerPath: route.Raw}
-
-			return route, routeData
-		}
-	}
-
-	return nil, nil
-}
-
 // Match is used to add a new Route to the Router
 func (r *Router[T]) Match(method string, path string, handler HandlerFunc[T]) {
-	r.routes = append(r.routes, newRoute(method, path, handler))
+	r.routeGroup.Match(method, path, handler)
 }
 
 // Defines a new Route that responds to GET requests.
@@ -203,11 +151,13 @@ func (r *Router[T]) Use(middleware Middleware) {
 var _ registerable[NoData] = (*Router[NoData])(nil)
 
 func (r *Router[T]) register(group dispatchable[T]) {
-	r.groups = append(r.groups, group)
+	r.routeGroup.register(group)
 }
 
-func (r *Router[T]) prefix() string { return "" }
+func (r *Router[T]) prefix() string {
+	return r.routeGroup.prefix()
+}
 
 func (r *Router[T]) Before(before BeforeFunc[T]) {
-	r.befores = append(r.befores, before)
+	r.routeGroup.Before(before)
 }
