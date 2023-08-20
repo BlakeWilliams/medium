@@ -101,7 +101,7 @@ func (s *Store[T]) WriteIfChanged(w http.ResponseWriter) error {
 }
 
 func (s *Store[T]) Changed() bool {
-	return reflect.DeepEqual(s.originalData, s.Data)
+	return !reflect.DeepEqual(s.originalData, s.Data)
 }
 
 // Cookie returns the underlying http.Cookie that is used to store the session.
