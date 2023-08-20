@@ -47,33 +47,29 @@ import (
   "net/http"
   "github.com/blakewilliams/medium"
 )
-// In medium "context" is called an action. It's typically a user provided type
-// with app specific fields and app specific behavior.
-type AppAction struct {
+// Requests in medium can store a generic data type that is passed to each
+// BeforeFunc and handler. This is useful for storing things like the current
+// user, global rendering data, etc.
+type ReqData struct {
   currentUser *User
-  medium.Action // Embed medium.Action to adhere to the router action constraint and get some default behavior
 }
 
-func (a *AppAction) Render(w io.Writer, templateName string, data interface{}) error {
-  // Render a template using the app specific template engine
-  template.New(templateName).ParseFiles("./templates/"+templateName).Execute(w, data)
-}
-
-// Create a new router. Routers, groups, and subrouters accept an "action
-// creator" function that allows you to convert the previous action type into your custom action type.
-//
-// This is also where you write code that is typically handled by
-// before/after/around actions in other frameworks, which is code that is meant
-// to run before or after the route handler is called.
-router := medium.New(func(rootAction Action, next func(*AppAction)) {
-  currentUser := findCurrentUser(a.Request)
-  action := AppAction{Action: ba, currentUser: currentUser}
-  next(action)
+// Routers are generic and must specify the type of Data they will pass to
+// HandlerFunc/BeforeFuncs.
+router := medium.New(func(req RootRequest) *ReqData {
+  return &ReqData
+})
+// Fill in ReqData with the current user before each request. The BeforeFunc
+// must return a Response that will be used to render the response. Calling next
+// will continue to the next BeforeFunc or HandlerFunc.
+router.Before(func(ctx context.Context, req *medium.Request[ReqData], next medium.Next) Response) Response {
+  req.Data.currentUser = findCurrentUser(req.Request)
+  return next(ctx)
 })
 
 // Add a hello route
-router.Get("/hello/:name", func(a AppAction) {
-  a.Render(a, "hello.html", map[string]any{"name": a.Params["name"]})
+router.Get("/hello/:name", func(ctx context.Context, req *medium.Request[ReqData]) Response {
+  return Render(req, "hello.html", map[string]any{"name": req.Params["name"], "currentUser": req.Data.currentUser})
 })
 
 fmt.Println("Listening on :8080")
@@ -84,104 +80,125 @@ _ = server.ListenAndServe()
 ### Groups and Subrouters
 
 Groups and subrouters allow you to consolidate behavior at the route level. For
-example, you can create a group that requires a user to be logged in, and then
-add routes to that group. If the user is not logged in, any request to a handler
-in that group or nested subgroup/subrouter of the group will render a 404.
+example, you can create a group that requires a user to be logged in.
 
 ```go
-// Create a new router
-router := medium.New(func(a *medium.BaseAction, next func(*AppAction)) {
-  currentUser := findCurrentUser(a.Request)
-  action := AppAction{Action: a, currentUser: currentUser}
+router := medium.New(func(req RootRequest) *ReqData {
+  return &ReqData
+})
 
-  next(action)
+router.Before(func(ctx context.Context, req *medium.Request[ReqData], next medium.Next) Response) Response {
+  req.Data.currentUser = findCurrentUser(req.Request)
+  return next(ctx)
 })
 
 // Create a group that requires a user to be logged in
-authGroup := router.Group(func(a *AppAction, next func(*AppAction)) {
+authGroup := router.Group(func(r *medium.Request[ReqData]) *ReqData {})
+authGroup.Before(func(ctx context.Context, req *medium.Request[ReqData], next medium.Next) Response {
+  // If there is no current user, return a 404
   if a.currentUser != nil {
-    a.Render404()
-    return
+    res := medium.NewResponse()
+    res.WriteStatus(http.StatusNotFound)
+    res.WriteString("Not Found")
+
+    return res
   }
 
-  next(a)
-})
+  // Otherwise, continue to the next BeforeFunc/HandlerFunc
+  return next(ctx)
+}
 
 // Add a route to the group that will redirect if the user is not logged in
-authGroup.Get("/welcome", func(a AppAction) {
-  a.Render(a, "hello.html", map[string]any{"CurrentUser": a.currentUser})
+authGroup.Get("/welcome", func(ctx context.Context, req *medium.Request[ReqData]) Response {
+  return Render(ctx, "hello.html", map[string]any{"CurrentUser": a.currentUser})
 })
 ```
 
 Subrouters are similar to groups, but allow you to create a new router that
-has a path prefix. This is useful for things like API versioning, or
-requiring a specific resource to be present and authorized.
+has a path prefix. This is useful for patterns like API versioning or requiring
+a specific resource to be present and authorized.
 
 ```go
 // Create a new router
-router := medium.New(func(a *medium.BaseAction, next(*AppAction)) {
-  currentUser := findCurrentUser(a.Request)
-  action := AppAction{Action: a, currentUser: currentUser}
-  next(action)
+router := medium.New(func(req RootRequest) *ReqData {
+  currentUser := findCurrentUser(req.Request)
+  return &ReqData{currentUser: currentUser}
 })
 
 // Create a type that will hold on to the current team
-type TeamAction struct {
-  // Embed AppAction to inherit all of the fields and methods
-  AppAction
+type TeamData struct {
   currentTeam *Team
+  // Embed parent data type if you want to access the current user, or pass it
+  // explicitly in the data creator function passed to SubRouter
+  ReqData
 }
 
 // Create a subrouter that ensures a team is present and authorized
-teamRouter := router.Subrouter("/teams/:teamID", func(a AppAction, next func(TeamAction)) {
-  team := findTeam(a.Params["teamID"])
-  if team == nil {
-    a.Render404()
-    return
+teamRouter := router.SubRouter("/teams/:teamID", func(r *medium.Request[ReqData]) *TeamData {
+  team := findTeam(r.Params["teamID"])
+  return &TeamData{ReqData: data, currentTeam: team}
+})
+
+// Ensure routes in the team router have a current team and that the current
+// user is a member of the team
+teamRouter.Before(func(ctx context.Context, req *medium.Request[TeamData], next medium.Next) Response) Response {
+  // If there is no current team, return a 404
+  if req.Data.currentTeam == nil {
+    res := medium.NewResponse()
+    res.WriteStatus(http.StatusNotFound)
+    res.WriteString("Not Found")
+
+    return res
   }
 
+  // If the current user is not a member of the team, return a 403
   if !team.IsMember(a.currentUser) {
-    a.Render403()
-    return
+    res := medium.NewResponse()
+    res.WriteStatus(http.StatusForbidden)
+    res.WriteString("Forbidden")
+
+    return res
   }
 
-  a.Team = team
-  next(TeamAction{AppAction: a, currentTeam: team})
+  // Otherwise, continue to the next BeforeFunc/HandlerFunc
+  return next(ctx)
 })
 
 // Add a route to render the team show page
-teamRouter.Get("/", func(a TeamAction) {
-  a.Render(a, "team.html", map[string]any{"Team": a.currentTeam})
+teamRouter.Get("/", func (ctx context.Context, req *medium.Request[TeamData]) Response {
+  return Render(ctx, "team.html", map[string]any{"Team": req.Data.currentTeam})
 })
 
 
-// Add a subrouter to the team router that will render the team settings page
-teamSettingsRouter := teamRouter.Subrouter("/settings", func(a TeamAction, next func(TeamAction)) {
-  if !a.currentTeam.IsAdmin(a.currentUser) {
-    a.Render403()
-    return
+// Add a subrouter to the team subrouter that will render the team settings page
+// if the current user is an admin
+teamSettingsRouter := teamRouter.SubRouter("/settings", func(r *medium.Request[TeamData]) *TeamData { return r.Data })
+teamSettingsRouter.Before(func(ctx context.Context, req *medium.Request[TeamData], next medium.Next) Response {
+  if !r.Data.currentTeam.IsAdmin(a.currentUser) {
+    res := medium.NewResponse()
+    res.WriteStatus(http.StatusForbidden)
+    res.WriteString("Forbidden")
   }
 
-  next(a)
+  return next(ctx)
 })
 ```
 
-This is a really powerful way to compose routes, ensuring that the correct
-resources are available and authorized before the route handler is called.
+This allows for flexible and safe composition of routes based on the current
+state of the request.
 
 ### Middleware
 
-Middleware allows you to add generic behavior to the router. This is useful for
-adding behavior like logging, tracing, tracking request ID's, rescuing and
-reporting exceptions, etc.
+Middleware are functions that use the Go `http` package types to modify the
+request and response before and after the handler is called. This is useful for
+compatibility with existing Go middleware packages and for adding generic
+behavior to the router.
 
 ```go
 // Create a new router
-router := medium.New(func(a *medium.BaseAction, next func(*AppAction)) {
-  currentUser := findCurrentUser(a.Request)
-  action := AppAction{Action: a, currentUser: currentUser}
-
-  next(action)
+router := medium.New(func(req RootRequest) *ReqData {
+  currentUser := findCurrentUser(req.Request)
+  return &ReqData{currentUser: currentUser}
 })
 
 // Add a middleware that logs the request. Middleware work on raw HTTP types, not medium types.
