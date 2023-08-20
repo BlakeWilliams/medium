@@ -6,6 +6,12 @@ import (
 	"regexp"
 )
 
+type dispatchable[T any] interface {
+	dispatch(r *RootRequest) (bool, *RouteData, func(context.Context, *Request[T]) Response)
+}
+
+var _ dispatchable[NoData] = (*RouteGroup[NoData, NoData])(nil)
+
 // registerable represents a type that can be registered on a router or a group
 // to create subgroups/subrouters.
 type registerable[Data any] interface {
@@ -105,7 +111,7 @@ func (g *RouteGroup[ParentData, Data]) Delete(path string, handler HandlerFunc[D
 }
 
 // Implements Dispatchable so groups can be registered on routers
-func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, *RouteData, func(context.Context, *Request[ParentData]) Response) {
+func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest *RootRequest) (bool, *RouteData, func(context.Context, *Request[ParentData]) Response) {
 	handler, routeData := g.routeFor(rootRequest)
 	if handler == nil {
 		return false, nil, nil
@@ -117,8 +123,10 @@ func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, 
 
 		routeHandler := func(ctx context.Context, req *Request[Data]) Response { return handler(ctx, req) }
 
-		for _, before := range g.befores {
+		for i := len(g.befores) - 1; i >= 0; i-- {
 			currentHandler := routeHandler
+			before := g.befores[i]
+
 			routeHandler = func(ctx context.Context, req *Request[Data]) Response {
 				return before(ctx, req, func(ctx context.Context) Response {
 					return currentHandler(ctx, req)
@@ -130,7 +138,7 @@ func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, 
 	}
 }
 
-func (g *RouteGroup[ParentData, Data]) routeFor(req RootRequest) (HandlerFunc[Data], *RouteData) {
+func (g *RouteGroup[ParentData, Data]) routeFor(req *RootRequest) (HandlerFunc[Data], *RouteData) {
 	for _, route := range g.routes {
 		if ok, params := route.IsMatch(req); ok {
 			return route.handler, &RouteData{Params: params, HandlerPath: route.Raw}
