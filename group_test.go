@@ -85,7 +85,7 @@ func TestGroup_Subgroup(t *testing.T) {
 		next(rw, r)
 	})
 
-	group := Group[NoData, MyData, registerable[NoData]](router, func(r *Request[NoData]) MyData {
+	group := Group(router, func(r *Request[NoData]) MyData {
 		return MyData{Value: 1}
 	})
 

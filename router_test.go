@@ -343,3 +343,27 @@ func Test_BeforeModifiesData(t *testing.T) {
 	router.ServeHTTP(rw, req)
 	require.Equal(t, http.StatusOK, rw.Code)
 }
+
+func TestDataCreator_WithContext(t *testing.T) {
+	router := NewWithContext(func(ctx context.Context, rootRequest *RootRequest) (context.Context, *MyData) {
+		return context.WithValue(ctx, "init", "present"), &MyData{Value: 1}
+	})
+	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+		next(rw, r.WithContext(context.WithValue(r.Context(), "middleware", "also present")))
+	})
+
+	called := false
+	router.Get("/hello/:name", func(ctx context.Context, r *Request[*MyData]) Response {
+		require.Equal(t, "present", ctx.Value("init"))
+		require.Equal(t, "also present", ctx.Value("middleware"))
+		called = true
+		return OK()
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
+	rw := httptest.NewRecorder()
+
+	router.ServeHTTP(rw, req)
+
+	require.True(t, called)
+}

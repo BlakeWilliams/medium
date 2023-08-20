@@ -29,16 +29,29 @@ type Router[T any] struct {
 	middlewares  []Middleware
 	routeGroup   *RouteGroup[NoData, T]
 	missingRoute HandlerFunc[T]
-	dataCreator func(*RootRequest) T
 }
 
 // Creates a new Router with the given action creator used to create the application's root type.
 func New[T any](dataCreator func(*RootRequest) T) *Router[T] {
 	return &Router[T]{
-		dataCreator: dataCreator,
 		routeGroup: &RouteGroup[NoData, T]{
-			routes:      make([]*Route[T], 0),
-			dataCreator: dataCreator,
+			routes: make([]*Route[T], 0),
+			dataCreator: func(ctx context.Context, r *RootRequest) (context.Context, T) {
+				return ctx, dataCreator(r)
+			},
+		},
+	}
+}
+
+// NewWithContext behaves the same as New, but is passed a context and expects
+// a context to be returned from the data creator.
+func NewWithContext[T any](dataCreator func(context.Context, *RootRequest) (context.Context, T)) *Router[T] {
+	return &Router[T]{
+		routeGroup: &RouteGroup[NoData, T]{
+			routes: make([]*Route[T], 0),
+			dataCreator: func(ctx context.Context, r *RootRequest) (context.Context, T) {
+				return dataCreator(ctx, r)
+			},
 		},
 	}
 }
@@ -50,7 +63,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		rootRequest := &RootRequest{originalRequest: r}
 		ok, routeData, routeHandler := router.routeGroup.dispatch(rootRequest)
 
-		data := router.dataCreator(rootRequest)
+		ctx, data := router.routeGroup.dataCreator(r.Context(), rootRequest)
 		newReq := NewRequest(rootRequest.originalRequest, data, routeData)
 
 		var mediumHandler func(context.Context) Response
@@ -72,7 +85,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		res := mediumHandler(r.Context())
+		res := mediumHandler(ctx)
 
 		for key, values := range res.Header() {
 			for _, value := range values {
