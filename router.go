@@ -7,7 +7,7 @@ import (
 )
 
 type dispatchable[T any] interface {
-	dispatch(r RootRequest) (bool, *RouteData, func(context.Context, Request[T]) Response)
+	dispatch(r RootRequest) (bool, *RouteData, func(context.Context, *Request[T]) Response)
 }
 
 var _ dispatchable[NoData] = (*Router[NoData])(nil)
@@ -19,13 +19,13 @@ var _ dispatchable[NoData] = (*RouteGroup[NoData, NoData])(nil)
 type Middleware func(http.ResponseWriter, *http.Request, http.HandlerFunc)
 
 // A function that handles a request.
-type HandlerFunc[T any] func(context.Context, Request[T]) Response
+type HandlerFunc[T any] func(context.Context, *Request[T]) Response
 
 // A function that calls the next BeforeFunc or HandlerFunc in the chain.
 type Next func(ctx context.Context) Response
 
 // A function that is called before the action is executed.
-type BeforeFunc[T any] (func(ctx context.Context, req Request[T], next Next) Response)
+type BeforeFunc[T any] (func(ctx context.Context, req *Request[T], next Next) Response)
 
 // Convenience type for middleware handlers
 // type MiddlewareFunc = HandlerFunc[Action]
@@ -58,16 +58,17 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		rootRequest := RootRequest{originalRequest: r}
 		ok, routeData, routeHandler := router.dispatch(rootRequest)
 
+		data := router.dataCreator(rootRequest)
+		newReq := NewRequest(rootRequest, data, routeData)
+
 		var mediumHandler func(context.Context) Response
 
 		if !ok {
 			mediumHandler = func(ctx context.Context) Response {
-				data := router.dataCreator(rootRequest)
 				if router.missingRoute == nil {
 					return StringResponse(http.StatusNotFound, "404 not found")
 				}
 
-				newReq := NewRequest(rootRequest, data, routeData)
 				return router.missingRoute(
 					ctx,
 					newReq,
@@ -75,9 +76,6 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			mediumHandler = func(ctx context.Context) Response {
-				data := router.dataCreator(rootRequest)
-
-				newReq := NewRequest(rootRequest, data, routeData)
 				return routeHandler(
 					ctx,
 					newReq,
@@ -90,8 +88,6 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				nextHandler := mediumHandler
 
 				mediumHandler = func(ctx context.Context) Response {
-					data := router.dataCreator(rootRequest)
-					newReq := NewRequest(rootRequest, data, routeData)
 
 					return before(
 						ctx,
@@ -130,7 +126,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	handler.ServeHTTP(rw, r)
 }
 
-func (router *Router[T]) dispatch(r RootRequest) (bool, *RouteData, func(context.Context, Request[T]) Response) {
+func (router *Router[T]) dispatch(r RootRequest) (bool, *RouteData, func(context.Context, *Request[T]) Response) {
 	if route, routeData := router.routeFor(r); route != nil {
 		return true, routeData, route.handler
 	}

@@ -3,6 +3,7 @@ package medium
 import (
 	"io"
 	"net/http"
+	"net/url"
 )
 
 // RootRequest is a wrapper around http.Request that contains the original Request
@@ -32,8 +33,8 @@ type RouteData struct {
 	HandlerPath string
 }
 
-func NewRequest[Data any](root RootRequest, data Data, routeData *RouteData) Request[Data] {
-	return Request[Data]{root: root, routeData: routeData, Data: data}
+func NewRequest[Data any](root RootRequest, data Data, routeData *RouteData) *Request[Data] {
+	return &Request[Data]{root: root, routeData: routeData, Data: data}
 }
 
 // Request returns the original request.
@@ -97,11 +98,26 @@ func (r Request[Data]) PostFormData() (map[string][]string, error) {
 	return r.Request().PostForm, err
 }
 
+// FormValue returns the first value for the named component of the request
+// body, ignoring errors from ParseForm.
+func (r Request[Data]) FormValue(key string) string {
+	formData, _ := r.FormData()
+
+	if len(formData[key]) == 0 {
+		return ""
+	}
+
+	return formData[key][0]
+}
+
 // Query returns the parsed query string from the request URL.
-func (r Request[Data]) Query() map[string][]string { return r.Request().URL.Query() }
+func (r Request[Data]) Query() url.Values { return r.Request().URL.Query() }
 
 // QueryParam returns the first value for the named component of the query.
 func (r Request[Data]) QueryParam(name string) string { return r.Request().URL.Query().Get(name) }
 
 // QueryParams returns the values for the named component of the query.
 func (r Request[Data]) QueryParams(name string) []string { return r.Request().URL.Query()[name] }
+
+// Referrer returns the referer for the request.
+func (r Request[Data]) Referer() string { return r.Request().Referer() }

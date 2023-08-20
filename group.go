@@ -27,6 +27,7 @@ type RouteGroup[ParentData any, Data any] struct {
 	routes        []*Route[Data]
 	actionCreator func(ParentData) Data
 	subgroups     []dispatchable[Data]
+	befores       []BeforeFunc[Data]
 	routePrefix   string
 }
 
@@ -112,34 +113,43 @@ func (g *RouteGroup[ParentData, Data]) Delete(path string, handler HandlerFunc[D
 }
 
 // Implements Dispatchable so groups can be registered on routers
-func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, *RouteData, func(context.Context, Request[ParentData]) Response) {
-	if route, params := g.routeFor(rootRequest); route != nil {
-		routeData := &RouteData{Params: params, HandlerPath: route.Raw}
+func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, *RouteData, func(context.Context, *Request[ParentData]) Response) {
+	handler, routeData := g.routeFor(rootRequest)
+	if handler == nil {
+		return false, nil, nil
+	}
 
-		return true, routeData, func(ctx context.Context, req Request[ParentData]) Response {
-			data := g.actionCreator(req.Data)
-			newReq := NewRequest(rootRequest, data, routeData)
-			return route.handler(ctx, newReq)
+	return true, routeData, func(ctx context.Context, req *Request[ParentData]) Response {
+		data := g.actionCreator(req.Data)
+		newReq := NewRequest(rootRequest, data, routeData)
+
+		routeHandler := func(ctx context.Context, req *Request[Data]) Response { return handler(ctx, req) }
+
+		for _, before := range g.befores {
+			currentHandler := routeHandler
+			routeHandler = func(ctx context.Context, req *Request[Data]) Response {
+				return before(ctx, req, func(ctx context.Context) Response {
+					return currentHandler(ctx, req)
+				})
+			}
+		}
+
+		return routeHandler(ctx, newReq)
+	}
+}
+
+func (g *RouteGroup[ParentData, Data]) routeFor(req RootRequest) (HandlerFunc[Data], *RouteData) {
+	for _, route := range g.routes {
+		if ok, params := route.IsMatch(req); ok {
+			return route.handler, &RouteData{Params: params, HandlerPath: route.Raw}
 		}
 	}
 
 	for _, group := range g.subgroups {
-		if ok, routeData, handler := group.dispatch(rootRequest); ok {
-			return true, routeData, func(ctx context.Context, req Request[ParentData]) Response {
-				data := g.actionCreator(req.Data)
-				newReq := NewRequest(rootRequest, data, routeData)
-				return handler(ctx, newReq)
-			}
-		}
-	}
-
-	return false, nil, nil
-}
-
-func (g *RouteGroup[ParentData, Data]) routeFor(req RootRequest) (*Route[Data], map[string]string) {
-	for _, route := range g.routes {
-		if ok, params := route.IsMatch(req); ok {
-			return route, params
+		if ok, routeData, handler := group.dispatch(req); ok {
+			return func(ctx context.Context, req *Request[Data]) Response {
+				return handler(ctx, req)
+			}, routeData
 		}
 	}
 
@@ -166,4 +176,8 @@ func joinPath(left string, right string) string {
 	right = leadingSlash.ReplaceAllString(right, "")
 
 	return left + "/" + right
+}
+
+func (r *RouteGroup[ParentData, Data]) Before(before BeforeFunc[Data]) {
+	r.befores = append(r.befores, before)
 }

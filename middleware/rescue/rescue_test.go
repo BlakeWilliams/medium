@@ -18,7 +18,7 @@ func TestRescue(t *testing.T) {
 	}
 
 	r.Use(Middleware(handler))
-	r.Get("/", func(ctx context.Context, ac medium.Request[medium.NoData]) medium.Response {
+	r.Get("/", func(ctx context.Context, ac *medium.Request[medium.NoData]) medium.Response {
 		panic("oh no!")
 	})
 
