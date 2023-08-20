@@ -122,7 +122,7 @@ func TestRouter_MissingRoute_WithHandler(t *testing.T) {
 }
 
 func TestCustomActionType(t *testing.T) {
-	router := New[*MyData](func(rootRequest RootRequest) *MyData {
+	router := New[*MyData](func(rootRequest *RootRequest) *MyData {
 		return &MyData{Value: 1}
 	})
 
@@ -262,7 +262,7 @@ func TestBefore_EarlyExit(t *testing.T) {
 }
 
 func TestBefore_DifferentDataType(t *testing.T) {
-	router := New(func(rootRequest RootRequest) *MyData {
+	router := New(func(rootRequest *RootRequest) *MyData {
 		return &MyData{Value: 1}
 	})
 
@@ -317,7 +317,7 @@ func GenericBefore[T any](ctx context.Context, req *Request[T], next Next) Respo
 }
 
 func Test_BeforeModifiesData(t *testing.T) {
-	router := New(func(rootRequest RootRequest) *MyData {
+	router := New(func(rootRequest *RootRequest) *MyData {
 		return &MyData{Value: 1}
 	})
 

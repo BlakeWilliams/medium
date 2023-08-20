@@ -7,11 +7,11 @@ import (
 )
 
 // NoData is a placeholder type for the default action creator.
-type NoData = struct{}
+type NoData struct{}
 
 // WithNoData is a convenience function for creating a NoData type for use with
 // groups and routers.
-func WithNoData(rootRequest RootRequest) NoData {
+func WithNoData(rootRequest *RootRequest) NoData {
 	return NoData{}
 }
 
