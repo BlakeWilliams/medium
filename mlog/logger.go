@@ -21,6 +21,8 @@ const (
 	// Fatal level, useful for application breaking errors. This level does not
 	// call os.Exit like other packages.
 	LevelFatal
+	// Null level, useful for testing or disabling logging.
+	LevelNull
 )
 
 type (
@@ -36,6 +38,8 @@ type (
 		Warn(msg string, fields Fields)
 		Error(msg string, fields Fields)
 		Fatal(msg string, fields Fields)
+		// Returns the current log level
+		Level() Level
 		WithDefaults(Fields) Logger
 	}
 
@@ -174,6 +178,9 @@ func (bl baseLogger) log(level Level, msg string, fields Fields) {
 	bl.writer.Print(output)
 }
 
+// Returns the current log level
+func (bl baseLogger) Level() Level { return bl.level }
+
 // Returns a new Logger that will always log the provided fields in subsequent
 // log calls.
 //
@@ -204,6 +211,8 @@ func LevelName(level Level) string {
 		return "error"
 	case LevelFatal:
 		return "fatal"
+	case LevelNull:
+		return "null"
 	default:
 		return "unknown"
 	}

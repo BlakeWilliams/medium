@@ -1,27 +1,29 @@
 package medium
 
 import (
+	"context"
 	"net/http"
 	"regexp"
 )
 
 // registerable represents a type that can be registered on a router or a group
 // to create subgroups/subrouters.
-type registerable[T Action] interface {
-	register(dispatchable[T])
+type registerable[Data any] interface {
+	register(dispatchable[Data])
 	prefix() string
 }
 
-// Group represents a collection of routes that share a common set of
+// RouteGroup represents a collection of routes that share a common set of
 // Around/Before/After callbacks and Action type (T)
-type Group[P Action, T Action] struct {
-	routes        []*Route[T]
-	actionCreator func(P, func(T))
-	subgroups     []dispatchable[T]
-	routePrefix   string
+type RouteGroup[ParentData any, Data any] struct {
+	routes      []*Route[Data]
+	dataCreator func(*Request[ParentData]) Data
+	subgroups   []dispatchable[Data]
+	befores     []BeforeFunc[Data]
+	routePrefix string
 }
 
-// Subrouter creates a new grouping of routes that will be routed to in addition
+// SubRouter creates a new grouping of routes that will be routed to in addition
 // to the routes defined on the primery router. These routes will be prefixed
 // using the given prefix.
 //
@@ -41,8 +43,8 @@ type Group[P Action, T Action] struct {
 //	|-Group[LoggedInAction, Admin]
 //	  |
 //	  |_ Group[Admin, SuperAdmin]
-func Subrouter[P Action, T Action, Y registerable[P]](parent Y, prefix string, creator func(P, func(T))) *Group[P, T] {
-	group := NewGroup(parent, creator)
+func SubRouter[ParentData any, Data any, Parent registerable[ParentData]](parent Parent, prefix string, creator func(*Request[ParentData]) Data) *RouteGroup[ParentData, Data] {
+	group := Group(parent, creator)
 	group.routePrefix = parent.prefix() + prefix
 
 	return group
@@ -53,8 +55,8 @@ func Subrouter[P Action, T Action, Y registerable[P]](parent Y, prefix string, c
 //
 // An action creator function is passed to the NewGroup, so that it can reference
 // fields from the parent action type.
-func NewGroup[P Action, T Action, Y registerable[P]](parent Y, creator func(P, func(T))) *Group[P, T] {
-	group := &Group[P, T]{routes: make([]*Route[T], 0), actionCreator: creator}
+func Group[ParentData any, Data any, Parent registerable[ParentData]](parent Parent, creator func(*Request[ParentData]) Data) *RouteGroup[ParentData, Data] {
+	group := &RouteGroup[ParentData, Data]{routes: make([]*Route[Data], 0), dataCreator: creator}
 	group.routePrefix = parent.prefix()
 	parent.register(group)
 
@@ -63,7 +65,7 @@ func NewGroup[P Action, T Action, Y registerable[P]](parent Y, creator func(P, f
 
 // Match defines a new Route that responds to requests that match the given
 // method and path.
-func (g *Group[P, T]) Match(method string, path string, handler HandlerFunc[T]) {
+func (g *RouteGroup[ParentData, Data]) Match(method string, path string, handler HandlerFunc[Data]) {
 	if path == "/" {
 		path = g.routePrefix
 	} else {
@@ -78,57 +80,68 @@ func (g *Group[P, T]) Match(method string, path string, handler HandlerFunc[T]) 
 }
 
 // Defines a new Route that responds to GET requests.
-func (g *Group[P, T]) Get(path string, handler HandlerFunc[T]) {
+func (g *RouteGroup[ParentData, Data]) Get(path string, handler HandlerFunc[Data]) {
 	g.Match(http.MethodGet, path, handler)
 }
 
 // Defines a new Route that responds to POST requests.
-func (g *Group[P, T]) Post(path string, handler HandlerFunc[T]) {
+func (g *RouteGroup[ParentData, Data]) Post(path string, handler HandlerFunc[Data]) {
 	g.Match(http.MethodPost, path, handler)
 }
 
 // Defines a new Route that responds to PUT requests.
-func (t *Group[P, T]) Put(path string, handler HandlerFunc[T]) {
+func (t *RouteGroup[ParentData, Data]) Put(path string, handler HandlerFunc[Data]) {
 	t.Match(http.MethodPut, path, handler)
 }
 
 // Defines a new Route that responds to PATCH requests.
-func (g *Group[P, T]) Patch(path string, handler HandlerFunc[T]) {
+func (g *RouteGroup[ParentData, Data]) Patch(path string, handler HandlerFunc[Data]) {
 	g.Match(http.MethodPatch, path, handler)
 }
 
 // Defines a new Route that responds to DELETE requests.
-func (g *Group[P, T]) Delete(path string, handler HandlerFunc[T]) {
+func (g *RouteGroup[ParentData, Data]) Delete(path string, handler HandlerFunc[Data]) {
 	g.Match(http.MethodDelete, path, handler)
 }
 
 // Implements Dispatchable so groups can be registered on routers
-func (g *Group[P, T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(P)) {
-	if route, params := g.routeFor(r); route != nil {
-		return true, params, func(action P) {
-			g.actionCreator(action, func(action T) {
-				route.handler(action)
-			})
+func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest RootRequest) (bool, *RouteData, func(context.Context, *Request[ParentData]) Response) {
+	handler, routeData := g.routeFor(rootRequest)
+	if handler == nil {
+		return false, nil, nil
+	}
+
+	return true, routeData, func(ctx context.Context, req *Request[ParentData]) Response {
+		data := g.dataCreator(req)
+		newReq := NewRequest(rootRequest.originalRequest, data, routeData)
+
+		routeHandler := func(ctx context.Context, req *Request[Data]) Response { return handler(ctx, req) }
+
+		for _, before := range g.befores {
+			currentHandler := routeHandler
+			routeHandler = func(ctx context.Context, req *Request[Data]) Response {
+				return before(ctx, req, func(ctx context.Context) Response {
+					return currentHandler(ctx, req)
+				})
+			}
+		}
+
+		return routeHandler(ctx, newReq)
+	}
+}
+
+func (g *RouteGroup[ParentData, Data]) routeFor(req RootRequest) (HandlerFunc[Data], *RouteData) {
+	for _, route := range g.routes {
+		if ok, params := route.IsMatch(req); ok {
+			return route.handler, &RouteData{Params: params, HandlerPath: route.Raw}
 		}
 	}
 
 	for _, group := range g.subgroups {
-		if ok, params, handler := group.dispatch(rw, r); ok {
-			return true, params, func(action P) {
-				g.actionCreator(action, func(action T) {
-					handler(action)
-				})
-			}
-		}
-	}
-
-	return false, nil, nil
-}
-
-func (g *Group[P, T]) routeFor(r *http.Request) (*Route[T], map[string]string) {
-	for _, route := range g.routes {
-		if ok, params := route.IsMatch(r); ok {
-			return route, params
+		if ok, routeData, handler := group.dispatch(req); ok {
+			return func(ctx context.Context, req *Request[Data]) Response {
+				return handler(ctx, req)
+			}, routeData
 		}
 	}
 
@@ -137,13 +150,13 @@ func (g *Group[P, T]) routeFor(r *http.Request) (*Route[T], map[string]string) {
 
 // register implements the registerable interface and allows subgroups to be
 // registered and routed to.
-func (g *Group[P, T]) register(subgroup dispatchable[T]) {
+func (g *RouteGroup[ParentData, Data]) register(subgroup dispatchable[Data]) {
 	g.subgroups = append(g.subgroups, subgroup)
 }
 
 // prefix implements the registerable interface and allows subgroups to register
 // routes with the correct path.
-func (g *Group[P, T]) prefix() string {
+func (g *RouteGroup[ParentData, Data]) prefix() string {
 	return g.routePrefix
 }
 
@@ -155,4 +168,8 @@ func joinPath(left string, right string) string {
 	right = leadingSlash.ReplaceAllString(right, "")
 
 	return left + "/" + right
+}
+
+func (r *RouteGroup[ParentData, Data]) Before(before BeforeFunc[Data]) {
+	r.befores = append(r.befores, before)
 }

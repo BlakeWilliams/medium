@@ -1,6 +1,7 @@
 package medium
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,9 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type groupAction struct {
-	value int
-	*BaseAction
+type MyData struct {
+	Value int
 }
 
 func TestGroup_Routes(t *testing.T) {
@@ -25,22 +25,20 @@ func TestGroup_Routes(t *testing.T) {
 		"Patch":  {method: http.MethodPatch},
 		"Delete": {method: http.MethodDelete},
 	}
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
 	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		next(rw, r)
 	})
 
-	group := NewGroup(router, func(ba *BaseAction, next func(*groupAction)) {
-		action := &groupAction{BaseAction: ba}
-		next(action)
+	group := Group(router, func(og *Request[NoData]) MyData {
+		return MyData{Value: 1}
 	})
 
 	for name, tc := range testCases {
 		path := reflect.ValueOf("/")
-		handler := reflect.ValueOf(func(c *groupAction) {
-			c.ResponseWriter().WriteHeader(http.StatusOK)
-			c.Write([]byte("hello"))
+		handler := reflect.ValueOf(func(ctx context.Context, r *Request[MyData]) Response {
+			return StringResponse(http.StatusOK, "hello")
 		})
 
 		t.Run(name, func(t *testing.T) {
@@ -56,19 +54,18 @@ func TestGroup_Routes(t *testing.T) {
 }
 
 func TestGroup(t *testing.T) {
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
 	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		rw.Header().Add("x-from-middleware", "wow")
 		next(rw, r)
 	})
 
-	group := NewGroup(router, func(ba *BaseAction, next func(*groupAction)) {
-		action := &groupAction{BaseAction: ba}
-		next(action)
+	group := Group(router, func(_ *Request[NoData]) MyData {
+		return MyData{Value: 1}
 	})
-	group.Get("/hello/:name", func(c *groupAction) {
-		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
+	group.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
@@ -81,26 +78,25 @@ func TestGroup(t *testing.T) {
 }
 
 func TestGroup_Subgroup(t *testing.T) {
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
 	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		rw.Header().Add("x-from-middleware", "wow")
 		next(rw, r)
 	})
 
-	group := NewGroup(router, func(ba *BaseAction, next func(*groupAction)) {
-		action := &groupAction{BaseAction: ba, value: 1}
-		next(action)
+	group := Group[NoData, MyData, registerable[NoData]](router, func(r *Request[NoData]) MyData {
+		return MyData{Value: 1}
 	})
 
-	subgroup := NewGroup(group, func(ga *groupAction, next func(*groupAction)) {
-		ga.value += 1
-		next(ga)
+	subgroup := Group(group, func(r *Request[MyData]) MyData {
+		r.Data.Value += 1
+		return r.Data
 	})
 
-	subgroup.Get("/hello/:name", func(c *groupAction) {
-		require.Equal(t, 2, c.value)
-		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
+	subgroup.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
+		require.Equal(t, 2, r.Data.Value)
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
@@ -113,36 +109,35 @@ func TestGroup_Subgroup(t *testing.T) {
 }
 
 func TestGroup_Subrouter(t *testing.T) {
-	router := New(DefaultActionCreator)
+	router := New(WithNoData)
 
 	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 		rw.Header().Add("x-from-middleware", "wow")
 		next(rw, r)
 	})
 
-	group := Subrouter(router, "/foo", func(ba *BaseAction, next func(*groupAction)) {
-		action := &groupAction{BaseAction: ba, value: 1}
-		next(action)
+	group := SubRouter(router, "/foo", func(_ *Request[NoData]) MyData {
+		return MyData{Value: 1}
 	})
 
-	subgroup := Subrouter(group, "/bar", func(ga *groupAction, next func(*groupAction)) {
-		ga.value += 1
-		next(ga)
+	subgroup := SubRouter(group, "/bar", func(r *Request[MyData]) MyData {
+		r.Data.Value += 1
+		return r.Data
 	})
 
-	subgroup.Get("/hello/:name", func(c *groupAction) {
-		require.Equal(t, 2, c.value)
-		c.Write([]byte(fmt.Sprintf("hello %s", c.Params()["name"])))
+	subgroup.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
+		require.Equal(t, 2, r.Data.Value)
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
-	subsubgroup := Subrouter(subgroup, "/baz", func(ga *groupAction, next func(*groupAction)) {
-		ga.value += 1
-		next(ga)
+	subsubgroup := SubRouter(subgroup, "/baz", func(r *Request[MyData]) MyData {
+		r.Data.Value += 1
+		return r.Data
 	})
 
-	subsubgroup.Get("/hello/:name", func(c *groupAction) {
-		require.Equal(t, 3, c.value)
-		c.Write([]byte(fmt.Sprintf("hello again %s", c.Params()["name"])))
+	subsubgroup.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
+		require.Equal(t, 3, r.Data.Value)
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello again %s", r.Params()["name"]))
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/foo/bar/hello/Fox%20Mulder", nil)
@@ -159,5 +154,88 @@ func TestGroup_Subrouter(t *testing.T) {
 	router.ServeHTTP(rw, req)
 
 	require.Equal(t, "hello again Fox Mulder", rw.Body.String())
+	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
+}
+
+func TestGroup_Before(t *testing.T) {
+	router := New(WithNoData)
+
+	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+		rw.Header().Add("x-from-middleware", "wow")
+		next(rw, r)
+	})
+
+	group := Group(router, func(_ *Request[NoData]) MyData {
+		return MyData{Value: 1}
+	})
+
+	called := false
+	group.Before(func(ctx context.Context, r *Request[MyData], next Next) Response {
+		called = true
+
+		require.Equal(t, 1, r.Data.Value)
+		r.Data.Value += 1
+		return next(ctx)
+	})
+
+	group.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
+		require.Equal(t, 2, r.Data.Value)
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
+	rw := httptest.NewRecorder()
+
+	router.ServeHTTP(rw, req)
+
+	require.True(t, called)
+	require.Equal(t, "hello Fox Mulder", rw.Body.String())
+	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
+}
+
+func TestGroup_Before_NestedGroup(t *testing.T) {
+	router := New(WithNoData)
+
+	router.Use(func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+		rw.Header().Add("x-from-middleware", "wow")
+		next(rw, r)
+	})
+
+	group := Group(router, func(_ *Request[NoData]) MyData {
+		return MyData{Value: 1}
+	})
+
+	called := false
+	group.Before(func(ctx context.Context, r *Request[MyData], next Next) Response {
+		called = true
+
+		require.Equal(t, 1, r.Data.Value)
+		r.Data.Value += 1
+		return next(ctx)
+	})
+
+	subgroup := Group(group, func(r *Request[MyData]) MyData {
+		require.Equal(t, 2, r.Data.Value)
+		r.Data.Value += 1
+		return r.Data
+	})
+	subgroup.Before(func(ctx context.Context, r *Request[MyData], next Next) Response {
+		require.Equal(t, 3, r.Data.Value)
+		r.Data.Value += 1
+		return next(ctx)
+	})
+
+	subgroup.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
+		require.Equal(t, 4, r.Data.Value)
+		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/hello/Fox%20Mulder", nil)
+	rw := httptest.NewRecorder()
+
+	router.ServeHTTP(rw, req)
+
+	require.True(t, called)
+	require.Equal(t, "hello Fox Mulder", rw.Body.String())
 	require.Equal(t, "wow", rw.Header().Get("x-from-middleware"))
 }

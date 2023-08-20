@@ -2,6 +2,7 @@ package mail
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	_ "embed"
 	"strconv"
@@ -13,14 +14,14 @@ import (
 //go:embed views/*
 var viewFS embed.FS
 
-func RegisterSentMailViewer[T medium.Action](medium *medium.Router[T], mailer *Mailer) {
+func RegisterSentMailViewer[T any](router *medium.Router[T], mailer *Mailer) {
 	renderer := bat.NewEngine(bat.HTMLEscape)
 	err := renderer.AutoRegister(viewFS, "", ".html")
 	if err != nil {
 		panic(err)
 	}
 
-	medium.Get("/_mailer", func(c T) {
+	router.Get("/_mailer", func(ctx context.Context, r *medium.Request[T]) medium.Response {
 		data := map[string]interface{}{
 			"SentMail": mailer.SentMail,
 		}
@@ -32,11 +33,14 @@ func RegisterSentMailViewer[T medium.Action](medium *medium.Router[T], mailer *M
 		}
 		data["ChildContent"] = bat.Safe(childContent.String())
 
-		_ = renderer.Render(c, "views/layout.html", data)
+		res := medium.NewResponse()
+		renderer.Render(res, "views/layout.html", data)
+
+		return res
 	})
 
-	medium.Get("/_mailer/sent/:index", func(c T) {
-		strIndex := c.Params()["index"]
+	router.Get("/_mailer/sent/:index", func(ctx context.Context, r *medium.Request[T]) medium.Response {
+		strIndex := r.Params()["index"]
 		index, err := strconv.Atoi(strIndex)
 
 		if err != nil {
@@ -55,22 +59,25 @@ func RegisterSentMailViewer[T medium.Action](medium *medium.Router[T], mailer *M
 		}
 		data["ChildContent"] = bat.Safe(childContent.String())
 
-		_ = renderer.Render(c, "views/layout.html", data)
+		res := medium.NewResponse()
+		_ = renderer.Render(res, "views/layout.html", data)
+
+		return res
 	})
 
-	medium.Get("/_mailer/sent/:index/content/:contentIndex/body", func(c T) {
-		strIndex := c.Params()["index"]
+	router.Get("/_mailer/sent/:index/content/:contentIndex/body", func(ctx context.Context, r *medium.Request[T]) medium.Response {
+		strIndex := r.Params()["index"]
 		index, err := strconv.Atoi(strIndex)
 		if err != nil {
 			panic(err)
 		}
 
-		strContentIndex := c.Params()["contentIndex"]
+		strContentIndex := r.Params()["contentIndex"]
 		contentIndex, err := strconv.Atoi(strContentIndex)
 		if err != nil {
 			panic(err)
 		}
 
-		c.Write([]byte(mailer.SentMail[index].Contents[contentIndex].Body))
+		return medium.StringResponse(200, mailer.SentMail[index].Contents[contentIndex].Body)
 	})
 }

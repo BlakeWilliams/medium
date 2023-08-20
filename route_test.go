@@ -1,6 +1,7 @@
 package medium
 
 import (
+	"context"
 	"net/http/httptest"
 	"testing"
 
@@ -93,9 +94,12 @@ func TestRouteMatching(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			req := httptest.NewRequest(tc.reqMethod, tc.reqPath, nil)
-			route := newRoute(tc.routeMethod, tc.routePath, func(*Action) {})
+			root := RootRequest{originalRequest: req}
+			route := newRoute(tc.routeMethod, tc.routePath, func(context.Context, *Request[NoData]) Response {
+				return OK()
+			})
 
-			got, params := route.IsMatch(req)
+			got, params := route.IsMatch(root)
 
 			assert.Equal(t, got, tc.want, "expected route to match")
 			assert.Equal(t, params, tc.params, "expected route to match")

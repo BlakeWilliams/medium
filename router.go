@@ -1,12 +1,17 @@
 package medium
 
 import (
+	"context"
+	"io"
 	"net/http"
 )
 
-type dispatchable[T Action] interface {
-	dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(T))
+type dispatchable[T any] interface {
+	dispatch(r RootRequest) (bool, *RouteData, func(context.Context, *Request[T]) Response)
 }
+
+var _ dispatchable[NoData] = (*Router[NoData])(nil)
+var _ dispatchable[NoData] = (*RouteGroup[NoData, NoData])(nil)
 
 // Middleware is a function that is called before the action is executed.
 // See Router.Use for more information.
@@ -14,17 +19,24 @@ type dispatchable[T Action] interface {
 type Middleware func(http.ResponseWriter, *http.Request, http.HandlerFunc)
 
 // A function that handles a request.
-type HandlerFunc[T any] func(T)
+type HandlerFunc[T any] func(context.Context, *Request[T]) Response
+
+// A function that calls the next BeforeFunc or HandlerFunc in the chain.
+type Next func(ctx context.Context) Response
+
+// A function that is called before the action is executed.
+type BeforeFunc[T any] (func(ctx context.Context, req *Request[T], next Next) Response)
 
 // Convenience type for middleware handlers
 // type MiddlewareFunc = HandlerFunc[Action]
 
 // Router is a collection of Routes and is used to dispatch requests to the
 // correct Route handler.
-type Router[T Action] struct {
-	routes        []*Route[T]
-	middleware    []Middleware
-	actionCreator func(Action, func(T))
+type Router[T any] struct {
+	routes      []*Route[T]
+	middlewares []Middleware
+	befores     []BeforeFunc[T]
+	dataCreator func(RootRequest) T
 	// Called when no route matches the request. Useful for rendering 404 pages.
 	missingRoute HandlerFunc[T]
 
@@ -32,10 +44,10 @@ type Router[T Action] struct {
 }
 
 // Creates a new Router with the given action creator used to create the application's root type.
-func New[T Action](actionCreator func(Action, func(T))) *Router[T] {
+func New[T any](dataCreator func(RootRequest) T) *Router[T] {
 	return &Router[T]{
-		actionCreator: actionCreator,
-		routes:        make([]*Route[T], 0),
+		dataCreator: dataCreator,
+		routes:      make([]*Route[T], 0),
 	}
 }
 
@@ -43,34 +55,66 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var handler http.HandlerFunc
 
 	handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		ok, params, routeHandler := router.dispatch(rw, r)
+		rootRequest := RootRequest{originalRequest: r}
+		ok, routeData, routeHandler := router.dispatch(rootRequest)
 
-		var mediumHandler func(a Action)
-		if ok {
-			mediumHandler = func(action Action) {
-				router.actionCreator(action, func(action T) {
-					routeHandler(action)
-				})
+		data := router.dataCreator(rootRequest)
+		newReq := NewRequest(rootRequest.originalRequest, data, routeData)
+
+		var mediumHandler func(context.Context) Response
+
+		if !ok {
+			mediumHandler = func(ctx context.Context) Response {
+				if router.missingRoute == nil {
+					return StringResponse(http.StatusNotFound, "404 not found")
+				}
+
+				return router.missingRoute(
+					ctx,
+					newReq,
+				)
 			}
 		} else {
-			mediumHandler = func(action Action) {
-				router.actionCreator(action, func(action T) {
-					if router.missingRoute != nil {
-						router.missingRoute(action)
-					} else {
-						action.ResponseWriter().WriteHeader(http.StatusNotFound)
-						_, _ = action.Write([]byte("404 not found"))
-					}
-				})
+			mediumHandler = func(ctx context.Context) Response {
+				return routeHandler(
+					ctx,
+					newReq,
+				)
+			}
+
+			// Run before actions
+			for i := len(router.befores) - 1; i >= 0; i-- {
+				before := router.befores[i]
+				nextHandler := mediumHandler
+
+				mediumHandler = func(ctx context.Context) Response {
+
+					return before(
+						ctx,
+						newReq,
+						nextHandler,
+					)
+				}
 			}
 		}
 
-		action := NewAction(rw, r, params)
-		mediumHandler(action)
+		res := mediumHandler(r.Context())
+
+		for key, values := range res.Header() {
+			for _, value := range values {
+				rw.Header().Add(key, value)
+			}
+		}
+		if res := res.Status(); res != 0 {
+			rw.WriteHeader(res)
+		}
+		if res.Body() != nil {
+			io.Copy(rw, res.Body())
+		}
 	})
 
-	for i := len(router.middleware) - 1; i >= 0; i-- {
-		middleware := router.middleware[i]
+	for i := len(router.middlewares) - 1; i >= 0; i-- {
+		middleware := router.middlewares[i]
 		nextHandler := handler
 
 		handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -81,24 +125,26 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	handler.ServeHTTP(rw, r)
 }
 
-func (router *Router[T]) dispatch(rw http.ResponseWriter, r *http.Request) (bool, map[string]string, func(T)) {
-	if route, params := router.routeFor(r); route != nil {
-		return true, params, route.handler
+func (router *Router[T]) dispatch(r RootRequest) (bool, *RouteData, func(context.Context, *Request[T]) Response) {
+	if route, routeData := router.routeFor(r); route != nil {
+		return true, routeData, route.handler
 	}
 
 	for _, group := range router.groups {
-		if ok, params, handler := group.dispatch(rw, r); ok {
-			return true, params, handler
+		if ok, routeData, handler := group.dispatch(r); ok {
+			return true, routeData, handler
 		}
 	}
 
 	return false, nil, nil
 }
 
-func (router *Router[T]) routeFor(r *http.Request) (*Route[T], map[string]string) {
+func (router *Router[T]) routeFor(r RootRequest) (*Route[T], *RouteData) {
 	for _, route := range router.routes {
 		if ok, params := route.IsMatch(r); ok {
-			return route, params
+			routeData := &RouteData{Params: params, HandlerPath: route.Raw}
+
+			return route, routeData
 		}
 	}
 
@@ -151,13 +197,17 @@ func (r *Router[T]) Missing(handler HandlerFunc[T]) {
 // Middleware is called in the order that they are added. Middleware must call
 // next in order to continue the request, otherwise the request is halted.
 func (r *Router[T]) Use(middleware Middleware) {
-	r.middleware = append(r.middleware, middleware)
+	r.middlewares = append(r.middlewares, middleware)
 }
 
-var _ registerable[Action] = (*Router[Action])(nil)
+var _ registerable[NoData] = (*Router[NoData])(nil)
 
 func (r *Router[T]) register(group dispatchable[T]) {
 	r.groups = append(r.groups, group)
 }
 
 func (r *Router[T]) prefix() string { return "" }
+
+func (r *Router[T]) Before(before BeforeFunc[T]) {
+	r.befores = append(r.befores, before)
+}
