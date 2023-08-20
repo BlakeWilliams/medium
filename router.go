@@ -14,11 +14,26 @@ type Middleware func(http.ResponseWriter, *http.Request, http.HandlerFunc)
 // A function that handles a request.
 type HandlerFunc[T any] func(context.Context, *Request[T]) Response
 
-// A function that calls the next BeforeFunc or HandlerFunc in the chain.
+// BeforeFunc is a function that is called before the action is executed.
+type BeforeFunc[T any] (func(ctx context.Context, req *Request[T], next Next) Response)
+
+// Next is a function that calls the next BeforeFunc or HandlerFunc in the
+// chain. It accepts a context and returns a Response.
 type Next func(ctx context.Context) Response
 
-// A function that is called before the action is executed.
-type BeforeFunc[T any] (func(ctx context.Context, req *Request[T], next Next) Response)
+// routeable is used to ensure parity between RouteGroup and Router
+type routable[ParentData any, Data any] interface {
+	Match(method string, path string, handler HandlerFunc[Data])
+	Get(path string, handler HandlerFunc[Data])
+	Post(path string, handler HandlerFunc[Data])
+	Put(path string, handler HandlerFunc[Data])
+	Patch(path string, handler HandlerFunc[Data])
+	Delete(path string, handler HandlerFunc[Data])
+	Before(before BeforeFunc[Data])
+}
+
+var _ routable[NoData, NoData] = (*RouteGroup[NoData, NoData])(nil)
+var _ routable[NoData, NoData] = (*Router[NoData])(nil)
 
 // Convenience type for middleware handlers
 // type MiddlewareFunc = HandlerFunc[Action]

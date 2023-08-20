@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-type routable interface {
+type requestable interface {
 	Request() *http.Request
 }
 
