@@ -141,7 +141,7 @@ teamRouter := router.SubRouter("/teams/:teamID", func(r *medium.Request[ReqData]
 
 // Ensure routes in the team router have a current team and that the current
 // user is a member of the team
-teamRouter.Before(func(ctx context.Context, req *medium.Request[TeamData], next medium.Next) Response) Response {
+teamRouter.Before(func(ctx context.Context, req *medium.Request[TeamData], next medium.Next) Response {
   // If there is no current team, return a 404
   if req.Data.currentTeam == nil {
     res := medium.NewResponse()
