@@ -46,8 +46,8 @@ func (r Request[Data]) Params() map[string]string { return r.routeData.Params }
 // MatchedPath returns the route path pattern that was matched.
 func (r Request[Data]) MatchedPath() string { return r.routeData.HandlerPath }
 
-// URL returns the URL of the request.
-func (r Request[Data]) URL() string { return r.Request().URL.String() }
+// URL returns the url.URL of the *http.Request.
+func (r Request[Data]) URL() *url.URL { return r.Request().URL }
 
 // Cookie returns the named cookie provided in the request.
 func (r Request[Data]) Cookie(name string) (*http.Cookie, error) { return r.Request().Cookie(name) }

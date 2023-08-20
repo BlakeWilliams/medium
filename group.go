@@ -6,14 +6,6 @@ import (
 	"regexp"
 )
 
-// WithNoData is a helper function that can be used to create a router that
-// doesn't require any new data to be created.
-func WithExistingData[T any](data T) func() T {
-	return func() T {
-		return data
-	}
-}
-
 // registerable represents a type that can be registered on a router or a group
 // to create subgroups/subrouters.
 type registerable[Data any] interface {
