@@ -23,7 +23,7 @@ type registerable[Data any] interface {
 // Around/Before/After callbacks and Action type (T)
 type RouteGroup[ParentData any, Data any] struct {
 	routes      []*Route[Data]
-	dataCreator func(*Request[ParentData]) Data
+	dataCreator func(ctx context.Context, r *Request[ParentData]) (context.Context, Data)
 	subgroups   []dispatchable[Data]
 	befores     []BeforeFunc[Data]
 	routePrefix string
@@ -49,8 +49,32 @@ type RouteGroup[ParentData any, Data any] struct {
 //	|-Group[LoggedInAction, Admin]
 //	  |
 //	  |_ Group[Admin, SuperAdmin]
-func SubRouter[ParentData any, Data any, Parent registerable[ParentData]](parent Parent, prefix string, creator func(*Request[ParentData]) Data) *RouteGroup[ParentData, Data] {
-	group := Group(parent, creator)
+func SubRouter[
+	ParentData any,
+	Data any,
+	Parent registerable[ParentData],
+](
+	parent Parent,
+	prefix string,
+	creator func(r *Request[ParentData]) Data,
+) *RouteGroup[ParentData, Data] {
+	return SubRouterWithContext(parent, prefix, func(ctx context.Context, r *Request[ParentData]) (context.Context, Data) {
+		return ctx, creator(r)
+	})
+}
+
+// SubRouterWithContext has the same behavior as SubRouter but passes the
+// context to the data creator and
+func SubRouterWithContext[
+	ParentData any,
+	Data any,
+	Parent registerable[ParentData],
+](
+	parent Parent,
+	prefix string,
+	creator func(ctx context.Context, r *Request[ParentData]) (context.Context, Data),
+) *RouteGroup[ParentData, Data] {
+	group := GroupWithContext(parent, creator)
 	group.routePrefix = parent.prefix() + prefix
 
 	return group
@@ -61,7 +85,36 @@ func SubRouter[ParentData any, Data any, Parent registerable[ParentData]](parent
 //
 // An action creator function is passed to the NewGroup, so that it can reference
 // fields from the parent action type.
-func Group[ParentData any, Data any, Parent registerable[ParentData]](parent Parent, creator func(*Request[ParentData]) Data) *RouteGroup[ParentData, Data] {
+func Group[
+	ParentData any,
+	Data any,
+	Parent registerable[ParentData],
+](
+	parent Parent,
+	creator func(r *Request[ParentData]) Data,
+) *RouteGroup[ParentData, Data] {
+	group := &RouteGroup[ParentData, Data]{
+		routes: make([]*Route[Data], 0),
+		dataCreator: func(ctx context.Context, r *Request[ParentData]) (context.Context, Data) {
+			return ctx, creator(r)
+		},
+	}
+	group.routePrefix = parent.prefix()
+	parent.register(group)
+
+	return group
+}
+
+// GroupWithContext has the same behavior as Group but passes the
+// context to the data creator and requires a context to be returned.
+func GroupWithContext[
+	ParentData any,
+	Data any,
+	Parent registerable[ParentData],
+](
+	parent Parent,
+	creator func(context.Context, *Request[ParentData]) (context.Context, Data),
+) *RouteGroup[ParentData, Data] {
 	group := &RouteGroup[ParentData, Data]{routes: make([]*Route[Data], 0), dataCreator: creator}
 	group.routePrefix = parent.prefix()
 	parent.register(group)
@@ -118,7 +171,7 @@ func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest *RootRequest) (bool,
 	}
 
 	return true, routeData, func(ctx context.Context, req *Request[ParentData]) Response {
-		data := g.dataCreator(req)
+		ctx, data := g.dataCreator(ctx, req)
 		newReq := NewRequest(rootRequest.originalRequest, data, routeData)
 
 		routeHandler := func(ctx context.Context, req *Request[Data]) Response { return handler(ctx, req) }
