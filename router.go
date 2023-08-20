@@ -108,7 +108,6 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		if res := res.Status(); res != 0 {
 			rw.WriteHeader(res)
 		}
-		rw.WriteHeader(res.Status())
 		if res.Body() != nil {
 			io.Copy(rw, res.Body())
 		}
