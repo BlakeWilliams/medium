@@ -10,5 +10,6 @@ func (n null) Fatal(msg string, fields Fields)             {}
 func (n null) Log(level string, msg string, fields Fields) {}
 func (n null) WithDefaults(fields Fields) Logger           { return n }
 func (n null) SetLevel(level string)                       {}
+func (n null) Level() Level                                { return LevelNull }
 
 var _ Logger = (*null)(nil)
