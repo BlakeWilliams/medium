@@ -62,7 +62,7 @@ router := medium.New(func(req RootRequest) *ReqData {
 // Fill in ReqData with the current user before each request. The BeforeFunc
 // must return a Response that will be used to render the response. Calling next
 // will continue to the next BeforeFunc or HandlerFunc.
-router.Before(func(ctx context.Context, req *medium.Request[ReqData], next medium.Next) Response) Response {
+router.Before(func(ctx context.Context, req *medium.Request[ReqData], next medium.Next) Response{
   req.Data.currentUser = findCurrentUser(req.Request)
   return next(ctx)
 })
@@ -87,7 +87,7 @@ router := medium.New(func(req RootRequest) *ReqData {
   return &ReqData
 })
 
-router.Before(func(ctx context.Context, req *medium.Request[ReqData], next medium.Next) Response) Response {
+router.Before(func(ctx context.Context, req *medium.Request[ReqData], next medium.Next) Response {
   req.Data.currentUser = findCurrentUser(req.Request)
   return next(ctx)
 })
