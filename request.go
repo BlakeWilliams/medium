@@ -17,6 +17,7 @@ type RootRequest = Request[NoData]
 type Request[Data any] struct {
 	originalRequest *http.Request
 	routeData       *RouteData
+	rw              http.ResponseWriter
 	Data            Data
 }
 
@@ -28,7 +29,7 @@ type RouteData struct {
 	HandlerPath string
 }
 
-func NewRequest[Data any](originalRequest *http.Request, data Data, routeData *RouteData) *Request[Data] {
+func NewRequest[Data any](w http.ResponseWriter, originalRequest *http.Request, data Data, routeData *RouteData) *Request[Data] {
 	return &Request[Data]{originalRequest: originalRequest, routeData: routeData, Data: data}
 }
 

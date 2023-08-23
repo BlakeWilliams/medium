@@ -15,6 +15,30 @@ type MyData struct {
 	Value int
 }
 
+type TeamData struct {
+	Team int
+}
+
+type MyController struct {
+	*Controller[MyData, *TeamData]
+}
+
+// var _ Controller[any, *TeamData] = (*MyController)(nil)
+
+func (c MyController) InitRoutes() RouteSet {
+	// Routes(
+	c.Get("/", c.Index)
+	// )
+}
+
+func (c MyController) BeforeHandler(w ResponseWriter, r *Request[MyData], td *TeamData) bool {
+	return true
+}
+
+func (c MyController) Index(w ResponseWriter, r *Request[MyData], td *TeamData) {
+	w.Write([]byte("ayo"))
+}
+
 func TestGroup_Routes(t *testing.T) {
 	testCases := map[string]struct {
 		method string
@@ -34,6 +58,9 @@ func TestGroup_Routes(t *testing.T) {
 	group := Group(router, func(og *Request[NoData]) MyData {
 		return MyData{Value: 1}
 	})
+
+	group.Register(MyController{})
+	require.True(t, false)
 
 	for name, tc := range testCases {
 		path := reflect.ValueOf("/")

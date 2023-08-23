@@ -172,7 +172,7 @@ func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest *RootRequest) (bool,
 
 	return true, routeData, func(ctx context.Context, req *Request[ParentData]) Response {
 		ctx, data := g.dataCreator(ctx, req)
-		newReq := NewRequest(rootRequest.originalRequest, data, routeData)
+		newReq := NewRequest(req.rw, rootRequest.originalRequest, data, routeData)
 
 		routeHandler := func(ctx context.Context, req *Request[Data]) Response { return handler(ctx, req) }
 

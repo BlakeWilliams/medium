@@ -22,7 +22,7 @@ type BeforeFunc[T any] (func(ctx context.Context, req *Request[T], next Next) Re
 type Next func(ctx context.Context) Response
 
 // routeable is used to ensure parity between RouteGroup and Router
-type routable[ParentData any, Data any] interface {
+type Routable[Data any] interface {
 	Match(method string, path string, handler HandlerFunc[Data])
 	Get(path string, handler HandlerFunc[Data])
 	Post(path string, handler HandlerFunc[Data])
@@ -32,8 +32,8 @@ type routable[ParentData any, Data any] interface {
 	Before(before BeforeFunc[Data])
 }
 
-var _ routable[NoData, NoData] = (*RouteGroup[NoData, NoData])(nil)
-var _ routable[NoData, NoData] = (*Router[NoData])(nil)
+var _ Routable[NoData] = (*RouteGroup[NoData, NoData])(nil)
+var _ Routable[NoData] = (*Router[NoData])(nil)
 
 // Convenience type for middleware handlers
 // type MiddlewareFunc = HandlerFunc[Action]
@@ -79,7 +79,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		ok, routeData, routeHandler := router.routeGroup.dispatch(rootRequest)
 
 		ctx, data := router.routeGroup.dataCreator(r.Context(), rootRequest)
-		newReq := NewRequest(rootRequest.originalRequest, data, routeData)
+		newReq := NewRequest(rw, rootRequest.originalRequest, data, routeData)
 
 		var mediumHandler func(context.Context) Response
 
