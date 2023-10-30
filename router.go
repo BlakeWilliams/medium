@@ -10,9 +10,7 @@ import (
 // e.g.
 // "GET /"
 // "POST /users".
-type Routes[T any] map[string]Handler[T]
-
-type Handler[T any] func(req *Request[T]) Response
+type Routes[T any] map[string]HandlerFunc[T]
 
 // Middleware is a function that is called before the action is executed.
 // See Router.Use for more information.

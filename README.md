@@ -93,7 +93,7 @@ router.Before(func(ctx context.Context, req *medium.Request[ReqData], next mediu
 })
 
 // Create a group that requires a user to be logged in
-authGroup := router.Group(func(r *medium.Request[ReqData]) *ReqData {})
+authGroup := medium.Group(router, func(r *medium.Request[ReqData]) *ReqData {})
 authGroup.Before(func(ctx context.Context, req *medium.Request[ReqData], next medium.Next) Response {
   // If there is no current user, return a 404
   if a.currentUser != nil {
@@ -134,7 +134,7 @@ type TeamData struct {
 }
 
 // Create a subrouter that ensures a team is present and authorized
-teamRouter := router.SubRouter("/teams/:teamID", func(r *medium.Request[ReqData]) *TeamData {
+teamRouter := medium.SubRouter(router, "/teams/:teamID", func(r *medium.Request[ReqData]) *TeamData {
   team := findTeam(r.Params["teamID"])
   return &TeamData{ReqData: data, currentTeam: team}
 })
@@ -172,7 +172,7 @@ teamRouter.Get("/", func (ctx context.Context, req *medium.Request[TeamData]) Re
 
 // Add a subrouter to the team subrouter that will render the team settings page
 // if the current user is an admin
-teamSettingsRouter := teamRouter.SubRouter("/settings", func(r *medium.Request[TeamData]) *TeamData { return r.Data })
+teamSettingsRouter := medium.SubRouter(teamRouter, "/settings", func(r *medium.Request[TeamData]) *TeamData { return r.Data })
 teamSettingsRouter.Before(func(ctx context.Context, req *medium.Request[TeamData], next medium.Next) Response {
   if !r.Data.currentTeam.IsAdmin(a.currentUser) {
     res := medium.NewResponse()

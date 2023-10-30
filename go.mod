@@ -1,6 +1,6 @@
 module github.com/blakewilliams/medium
 
-go 1.18
+go 1.21
 
 require (
 	github.com/blakewilliams/bat v0.0.0-20230226194125-1fbe2afc9fa1
