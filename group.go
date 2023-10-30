@@ -1,13 +1,12 @@
 package medium
 
 import (
-	"context"
 	"net/http"
 	"regexp"
 )
 
 type dispatchable[T any] interface {
-	dispatch(r *RootRequest) (bool, *RouteData, func(context.Context, *Request[T]) Response)
+	dispatch(r *RootRequest) (bool, *RouteData, func(*Request[T]) Response)
 }
 
 var _ dispatchable[NoData] = (*RouteGroup[NoData, NoData])(nil)
@@ -23,7 +22,7 @@ type registerable[Data any] interface {
 // Around/Before/After callbacks and Action type (T)
 type RouteGroup[ParentData any, Data any] struct {
 	routes      []*Route[Data]
-	dataCreator func(ctx context.Context, r *Request[ParentData]) (context.Context, Data)
+	dataCreator func(r *Request[ParentData]) Data
 	subgroups   []dispatchable[Data]
 	befores     []BeforeFunc[Data]
 	routePrefix string
@@ -58,23 +57,7 @@ func SubRouter[
 	prefix string,
 	creator func(r *Request[ParentData]) Data,
 ) *RouteGroup[ParentData, Data] {
-	return SubRouterWithContext(parent, prefix, func(ctx context.Context, r *Request[ParentData]) (context.Context, Data) {
-		return ctx, creator(r)
-	})
-}
-
-// SubRouterWithContext has the same behavior as SubRouter but passes the
-// context to the data creator and
-func SubRouterWithContext[
-	ParentData any,
-	Data any,
-	Parent registerable[ParentData],
-](
-	parent Parent,
-	prefix string,
-	creator func(ctx context.Context, r *Request[ParentData]) (context.Context, Data),
-) *RouteGroup[ParentData, Data] {
-	group := GroupWithContext(parent, creator)
+	group := Group(parent, creator)
 	group.routePrefix = parent.prefix() + prefix
 
 	return group
@@ -95,27 +78,10 @@ func Group[
 ) *RouteGroup[ParentData, Data] {
 	group := &RouteGroup[ParentData, Data]{
 		routes: make([]*Route[Data], 0),
-		dataCreator: func(ctx context.Context, r *Request[ParentData]) (context.Context, Data) {
-			return ctx, creator(r)
+		dataCreator: func(r *Request[ParentData]) Data {
+			return creator(r)
 		},
 	}
-	group.routePrefix = parent.prefix()
-	parent.register(group)
-
-	return group
-}
-
-// GroupWithContext has the same behavior as Group but passes the
-// context to the data creator and requires a context to be returned.
-func GroupWithContext[
-	ParentData any,
-	Data any,
-	Parent registerable[ParentData],
-](
-	parent Parent,
-	creator func(context.Context, *Request[ParentData]) (context.Context, Data),
-) *RouteGroup[ParentData, Data] {
-	group := &RouteGroup[ParentData, Data]{routes: make([]*Route[Data], 0), dataCreator: creator}
 	group.routePrefix = parent.prefix()
 	parent.register(group)
 
@@ -164,30 +130,29 @@ func (g *RouteGroup[ParentData, Data]) Delete(path string, handler HandlerFunc[D
 }
 
 // Implements Dispatchable so groups can be registered on routers
-func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest *RootRequest) (bool, *RouteData, func(context.Context, *Request[ParentData]) Response) {
+func (g *RouteGroup[ParentData, Data]) dispatch(rootRequest *RootRequest) (bool, *RouteData, func(*Request[ParentData]) Response) {
 	handler, routeData := g.routeFor(rootRequest)
 	if handler == nil {
 		return false, nil, nil
 	}
 
-	return true, routeData, func(ctx context.Context, req *Request[ParentData]) Response {
-		ctx, data := g.dataCreator(ctx, req)
-		newReq := NewRequest(req.rw, rootRequest.originalRequest, data, routeData)
-
-		routeHandler := func(ctx context.Context, req *Request[Data]) Response { return handler(ctx, req) }
+	return true, routeData, func(req *Request[ParentData]) Response {
+		routeHandler := func(req *Request[Data]) Response { return handler(req) }
 
 		for i := len(g.befores) - 1; i >= 0; i-- {
 			currentHandler := routeHandler
 			before := g.befores[i]
 
-			routeHandler = func(ctx context.Context, req *Request[Data]) Response {
-				return before(ctx, req, func(ctx context.Context) Response {
-					return currentHandler(ctx, req)
+			routeHandler = func(rr *Request[Data]) Response {
+				return before(rr, func(rrr *Request[Data]) Response {
+					return currentHandler(rrr)
 				})
 			}
 		}
 
-		return routeHandler(ctx, newReq)
+		data := g.dataCreator(req)
+		newReq := NewRequest(req.rw, rootRequest.originalRequest, data, routeData)
+		return routeHandler(newReq)
 	}
 }
 
@@ -200,8 +165,8 @@ func (g *RouteGroup[ParentData, Data]) routeFor(req *RootRequest) (HandlerFunc[D
 
 	for _, group := range g.subgroups {
 		if ok, routeData, handler := group.dispatch(req); ok {
-			return func(ctx context.Context, req *Request[Data]) Response {
-				return handler(ctx, req)
+			return func(req *Request[Data]) Response {
+				return handler(req)
 			}, routeData
 		}
 	}

@@ -1,6 +1,7 @@
 package medium
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/url"
@@ -31,6 +32,19 @@ type RouteData struct {
 
 func NewRequest[Data any](w http.ResponseWriter, originalRequest *http.Request, data Data, routeData *RouteData) *Request[Data] {
 	return &Request[Data]{originalRequest: originalRequest, routeData: routeData, Data: data}
+}
+
+// WithContext returns a copy of the request with the provided context set on
+// both the medium and net/http requests.
+func (r Request[Data]) WithContext(ctx context.Context) *Request[Data] {
+	newRequest := NewRequest[Data](r.rw, r.originalRequest, r.Data, r.routeData)
+	newRequest.originalRequest = r.originalRequest.WithContext(ctx)
+	return newRequest
+}
+
+// Context returns the net/http request's context that is shared with this request.
+func (r Request[Data]) Context() context.Context {
+	return r.originalRequest.Context()
 }
 
 // Request returns the original request.

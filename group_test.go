@@ -1,7 +1,6 @@
 package medium
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,29 +14,36 @@ type MyData struct {
 	Value int
 }
 
-type TeamData struct {
-	Team int
-}
+// type TeamData struct {
+// 	Team int
+// }
 
-type MyController struct {
-	*Controller[MyData, *TeamData]
-}
+// type MyController struct {
+// 	// *Controller[MyData, *TeamData]
+// }
 
-// var _ Controller[any, *TeamData] = (*MyController)(nil)
+// func (c MyController) SetupRoutes() ControllerRoutes[*TeamData] {
+// 	return ControllerRoutes[*TeamData]{
+// 		"GET": c.Index,
+// 	}
+// }
 
-func (c MyController) InitRoutes() RouteSet {
-	// Routes(
-	c.Get("/", c.Index)
-	// )
-}
+// // var _ Controller[any, *TeamData] = (*MyController)(nil)
 
-func (c MyController) BeforeHandler(w ResponseWriter, r *Request[MyData], td *TeamData) bool {
-	return true
-}
+// // func (c MyController) Routes() registerable[MyData] {
+// // 	ControllerRoutes[MyData, TeamData]{
+// // 		{"GET", c.Index},
+// // 	}
+// // 	// c.Get("/", c.Index)
+// // }
 
-func (c MyController) Index(w ResponseWriter, r *Request[MyData], td *TeamData) {
-	w.Write([]byte("ayo"))
-}
+// func (c MyController) BeforeHandler(w ResponseWriter, r *Request[*TeamData]) bool {
+// 	return true
+// }
+
+// func (c MyController) Index(w ResponseWriter, r *Request[MyData], td *TeamData) {
+// 	w.Write([]byte("ayo"))
+// }
 
 func TestGroup_Routes(t *testing.T) {
 	testCases := map[string]struct {
@@ -59,12 +65,9 @@ func TestGroup_Routes(t *testing.T) {
 		return MyData{Value: 1}
 	})
 
-	group.Register(MyController{})
-	require.True(t, false)
-
 	for name, tc := range testCases {
 		path := reflect.ValueOf("/")
-		handler := reflect.ValueOf(func(ctx context.Context, r *Request[MyData]) Response {
+		handler := reflect.ValueOf(func(r *Request[MyData]) Response {
 			return StringResponse(http.StatusOK, "hello")
 		})
 
@@ -91,7 +94,7 @@ func TestGroup(t *testing.T) {
 	group := Group(router, func(_ *Request[NoData]) MyData {
 		return MyData{Value: 1}
 	})
-	group.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
+	group.Get("/hello/:name", func(r *Request[MyData]) Response {
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
 
@@ -121,7 +124,7 @@ func TestGroup_Subgroup(t *testing.T) {
 		return r.Data
 	})
 
-	subgroup.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
+	subgroup.Get("/hello/:name", func(r *Request[MyData]) Response {
 		require.Equal(t, 2, r.Data.Value)
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
@@ -152,7 +155,7 @@ func TestGroup_Subrouter(t *testing.T) {
 		return r.Data
 	})
 
-	subgroup.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
+	subgroup.Get("/hello/:name", func(r *Request[MyData]) Response {
 		require.Equal(t, 2, r.Data.Value)
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
@@ -162,7 +165,7 @@ func TestGroup_Subrouter(t *testing.T) {
 		return r.Data
 	})
 
-	subsubgroup.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
+	subsubgroup.Get("/hello/:name", func(r *Request[MyData]) Response {
 		require.Equal(t, 3, r.Data.Value)
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello again %s", r.Params()["name"]))
 	})
@@ -197,15 +200,15 @@ func TestGroup_Before(t *testing.T) {
 	})
 
 	called := false
-	group.Before(func(ctx context.Context, r *Request[MyData], next Next) Response {
+	group.Before(func(r *Request[MyData], next Next[MyData]) Response {
 		called = true
 
 		require.Equal(t, 1, r.Data.Value)
 		r.Data.Value += 1
-		return next(ctx)
+		return next(r)
 	})
 
-	group.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
+	group.Get("/hello/:name", func(r *Request[MyData]) Response {
 		require.Equal(t, 2, r.Data.Value)
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})
@@ -233,12 +236,12 @@ func TestGroup_Before_NestedGroup(t *testing.T) {
 	})
 
 	called := false
-	group.Before(func(ctx context.Context, r *Request[MyData], next Next) Response {
+	group.Before(func(r *Request[MyData], next Next[MyData]) Response {
 		called = true
 
 		require.Equal(t, 1, r.Data.Value)
 		r.Data.Value += 1
-		return next(ctx)
+		return next(r)
 	})
 
 	subgroup := Group(group, func(r *Request[MyData]) MyData {
@@ -246,13 +249,13 @@ func TestGroup_Before_NestedGroup(t *testing.T) {
 		r.Data.Value += 1
 		return r.Data
 	})
-	subgroup.Before(func(ctx context.Context, r *Request[MyData], next Next) Response {
+	subgroup.Before(func(r *Request[MyData], next Next[MyData]) Response {
 		require.Equal(t, 3, r.Data.Value)
 		r.Data.Value += 1
-		return next(ctx)
+		return next(r)
 	})
 
-	subgroup.Get("/hello/:name", func(ctx context.Context, r *Request[MyData]) Response {
+	subgroup.Get("/hello/:name", func(r *Request[MyData]) Response {
 		require.Equal(t, 4, r.Data.Value)
 		return StringResponse(http.StatusOK, fmt.Sprintf("hello %s", r.Params()["name"]))
 	})

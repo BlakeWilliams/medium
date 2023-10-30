@@ -1,7 +1,6 @@
 package rescue
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,7 +17,7 @@ func TestRescue(t *testing.T) {
 	}
 
 	r.Use(Middleware(handler))
-	r.Get("/", func(ctx context.Context, ac *medium.Request[medium.NoData]) medium.Response {
+	r.Get("/", func(ac *medium.Request[medium.NoData]) medium.Response {
 		panic("oh no!")
 	})
 

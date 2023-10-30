@@ -1,10 +1,18 @@
 package medium
 
 import (
-	"context"
 	"io"
 	"net/http"
 )
+
+// ControllerRoutes is a map of routes to handlers. The string keys must
+// follow the format of method followed by the path separated by a space.
+// e.g.
+// "GET /"
+// "POST /users".
+type Routes[T any] map[string]Handler[T]
+
+type Handler[T any] func(req *Request[T]) Response
 
 // Middleware is a function that is called before the action is executed.
 // See Router.Use for more information.
@@ -12,14 +20,14 @@ import (
 type Middleware func(http.ResponseWriter, *http.Request, http.HandlerFunc)
 
 // A function that handles a request.
-type HandlerFunc[T any] func(context.Context, *Request[T]) Response
+type HandlerFunc[T any] func(*Request[T]) Response
 
 // BeforeFunc is a function that is called before the action is executed.
-type BeforeFunc[T any] (func(ctx context.Context, req *Request[T], next Next) Response)
+type BeforeFunc[T any] (func(req *Request[T], next Next[T]) Response)
 
 // Next is a function that calls the next BeforeFunc or HandlerFunc in the
 // chain. It accepts a context and returns a Response.
-type Next func(ctx context.Context) Response
+type Next[T any] func(*Request[T]) Response
 
 // routeable is used to ensure parity between RouteGroup and Router
 type Routable[Data any] interface {
@@ -51,8 +59,8 @@ func New[T any](dataCreator func(*RootRequest) T) *Router[T] {
 	return &Router[T]{
 		routeGroup: &RouteGroup[NoData, T]{
 			routes: make([]*Route[T], 0),
-			dataCreator: func(ctx context.Context, r *RootRequest) (context.Context, T) {
-				return ctx, dataCreator(r)
+			dataCreator: func(r *RootRequest) T {
+				return dataCreator(r)
 			},
 		},
 	}
@@ -60,12 +68,12 @@ func New[T any](dataCreator func(*RootRequest) T) *Router[T] {
 
 // NewWithContext behaves the same as New, but is passed a context and expects
 // a context to be returned from the data creator.
-func NewWithContext[T any](dataCreator func(context.Context, *RootRequest) (context.Context, T)) *Router[T] {
+func NewWithContext[T any](dataCreator func(*RootRequest) T) *Router[T] {
 	return &Router[T]{
 		routeGroup: &RouteGroup[NoData, T]{
 			routes: make([]*Route[T], 0),
-			dataCreator: func(ctx context.Context, r *RootRequest) (context.Context, T) {
-				return dataCreator(ctx, r)
+			dataCreator: func(r *RootRequest) T {
+				return dataCreator(r)
 			},
 		},
 	}
@@ -78,29 +86,27 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		rootRequest := &RootRequest{originalRequest: r}
 		ok, routeData, routeHandler := router.routeGroup.dispatch(rootRequest)
 
-		ctx, data := router.routeGroup.dataCreator(r.Context(), rootRequest)
-		newReq := NewRequest(rw, rootRequest.originalRequest, data, routeData)
-
-		var mediumHandler func(context.Context) Response
+		var mediumHandler func() Response
 
 		if !ok {
-			mediumHandler = func(ctx context.Context) Response {
+			mediumHandler = func() Response {
 				if router.missingRoute == nil {
 					return StringResponse(http.StatusNotFound, "404 not found")
 				}
 
+				data := router.routeGroup.dataCreator(rootRequest)
+				newReq := NewRequest(rw, rootRequest.originalRequest, data, routeData)
 				return router.missingRoute(
-					ctx,
 					newReq,
 				)
 			}
 		} else {
-			mediumHandler = func(ctx context.Context) Response {
-				return routeHandler(ctx, rootRequest)
+			mediumHandler = func() Response {
+				return routeHandler(rootRequest)
 			}
 		}
 
-		res := mediumHandler(ctx)
+		res := mediumHandler()
 
 		for key, values := range res.Header() {
 			for _, value := range values {
@@ -111,7 +117,7 @@ func (router *Router[T]) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(res)
 		}
 		if res.Body() != nil {
-			io.Copy(rw, res.Body())
+			_, _ = io.Copy(rw, res.Body())
 		}
 	})
 
