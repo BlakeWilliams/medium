@@ -21,6 +21,8 @@ type (
 func Mount[T any](r medium.Routable[T], controller Routable[T]) {
 	routes := controller.RegisterRoutes()
 
+	// TODO: Add validation that Before has the correct signature if it's
+	// defined using reflection.
 	if _, ok := any(controller).(Before[T]); ok {
 		for key, handler := range routes {
 			routes[key] = handler
