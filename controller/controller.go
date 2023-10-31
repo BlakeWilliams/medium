@@ -13,11 +13,16 @@ type (
 		RegisterRoutes() medium.Routes[T]
 	}
 
+	// Before is an optional interface that can be implemented by a controller
+	// that allows it to run code before the route handler is called via next.
 	Before[T any] interface {
 		Before(r *medium.Request[T], next medium.HandlerFunc[T]) medium.Response
 	}
 )
 
+// Mount registers the routes from the controller with the provided router or
+// routable (group, subrouter, etc). If the controller implements Before
+// interface then the Before method will be called before the route handler.
 func Mount[T any](r medium.Routable[T], controller Routable[T]) {
 	routes := controller.RegisterRoutes()
 
