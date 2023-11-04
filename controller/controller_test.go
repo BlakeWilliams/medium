@@ -57,7 +57,7 @@ func (c *ControllerWithBefore) RegisterRoutes() medium.Routes[*TeamData] {
 	}
 }
 
-func (c *ControllerWithBefore) Before(req *medium.Request[*TeamData], next medium.HandlerFunc[*TeamData]) medium.Response {
+func (c *ControllerWithBefore) BeforeHandler(req *medium.Request[*TeamData], next medium.HandlerFunc[*TeamData]) medium.Response {
 	if req.URL().Query().Get("allowed") != "true" {
 		res := &medium.ResponseBuilder{}
 		res.WriteStatus(http.StatusForbidden)
@@ -97,4 +97,25 @@ func TestController_Before(t *testing.T) {
 	router.ServeHTTP(rw, req)
 
 	require.Equal(t, http.StatusOK, rw.Code)
+}
+
+type ControllerWrongBefore struct{}
+
+func (c *ControllerWrongBefore) RegisterRoutes() medium.Routes[*TeamData] {
+	return medium.Routes[*TeamData]{}
+}
+
+func (c *ControllerWrongBefore) BeforeHandler(req *medium.Request[int], next medium.HandlerFunc[*TeamData]) medium.Response {
+	return nil
+}
+
+func TestController_BeforeSignature(t *testing.T) {
+	router := medium.New[*TeamData](func(r *medium.RootRequest) *TeamData {
+		return &TeamData{}
+	})
+
+	c := &ControllerWrongBefore{}
+	require.Panics(t, func() {
+		Mount(router, c)
+	})
 }
